@@ -18,6 +18,7 @@ from shapely.ops import unary_union
 from shapely.geometry import box, MultiPolygon
 from scipy.interpolate import interp1d
 import os
+from tqdm import tqdm
 iris.FUTURE.date_microseconds = True
 
 
@@ -83,12 +84,10 @@ def get_rainfall_cube(yr, ENS_NUM, RAINFALLDIR):
     Loads Dec of previous year + Jan-Nov of target year.
     """
     files = [
-        f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc"
-    ]
+        f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc"]
     for m in range(1, 12):
         files.append(
-            f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}{m:02d}01-{yr}{m:02d}30.nc"
-        )
+            f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}{m:02d}01-{yr}{m:02d}30.nc")
 
     monthly_cubes = iris.cube.CubeList()
     for f in files:
@@ -140,25 +139,25 @@ def apply_mask_to_cube(cube, mask_2d):
     return cube_masked
 
 
-def plot_masked_cube(cube_masked, catchment_poly, boundary_gdf, event_num=None):
-    """Plot the first timestep of a masked cube for a visual check."""
-    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={'projection': ccrs.OSGB()})
+# def plot_masked_cube(cube_masked, catchment_poly, boundary_gdf, event_num=None):
+#     """Plot the first timestep of a masked cube for a visual check."""
+#     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={'projection': ccrs.OSGB()})
 
-    # Fix coord system and guess bounds to avoid warnings
-    for coord_name in ['projection_x_coordinate', 'projection_y_coordinate']:
-        coord = cube_masked.coord(coord_name)
-        coord.coord_system = iris.coord_systems.OSGB()
-        if not coord.has_bounds():
-            coord.guess_bounds()
+#     # Fix coord system and guess bounds to avoid warnings
+#     for coord_name in ['projection_x_coordinate', 'projection_y_coordinate']:
+#         coord = cube_masked.coord(coord_name)
+#         coord.coord_system = iris.coord_systems.OSGB()
+#         if not coord.has_bounds():
+#             coord.guess_bounds()
 
-    qplt.pcolormesh(cube_masked[0], axes=ax)
-    minx, maxx, miny, maxy = catchment_poly.bounds
-    # minx, maxx, miny, maxy = np.hstack(boundary_gdf.bounds.values)
-    ax.set_extent([minx, maxx, miny, maxy], crs=ccrs.OSGB())
-    boundary_gdf.boundary.plot(ax=ax, color='black')
-    title = f"Masked cube - event {event_num} (first timestep)" if event_num else "Masked cube (first timestep)"
-    plt.title(title)
-    plt.show()
+#     qplt.pcolormesh(cube_masked[0], axes=ax)
+#     minx, maxx, miny, maxy = catchment_poly.bounds
+#     # minx, maxx, miny, maxy = np.hstack(boundary_gdf.bounds.values)
+#     ax.set_extent([minx, maxx, miny, maxy], crs=ccrs.OSGB())
+#     boundary_gdf.boundary.plot(ax=ax, color='black')
+#     title = f"Masked cube - event {event_num} (first timestep)" if event_num else "Masked cube (first timestep)"
+#     plt.title(title)
+#     plt.show()
 
     
 def filter_closer_to_catchment(cube, catchment_poly, plot=False, boundary_gdf = None):
@@ -267,8 +266,7 @@ def find_max_precip_location(cube, mask_2d, start_idx, stop_idx):
         'x_idx':      int(x_idx),
         'y_idx':      int(y_idx),
         'x_coord':    cube.coord('projection_x_coordinate').points[x_idx],
-        'y_coord':    cube.coord('projection_y_coordinate').points[y_idx],
-    }
+        'y_coord':    cube.coord('projection_y_coordinate').points[y_idx],}
 
 
 def find_temporal_profile(cube, details, peak, plot):
@@ -394,8 +392,7 @@ def plot_flood_vs_rainfall(
     threshold_mask=None,
     catchment_poly=None,
     boundary_gdf=None,
-    buffer=2000
-):
+    buffer=2000):
     """
     Side-by-side plot:
     LEFT  = flood extent
@@ -650,303 +647,273 @@ def plot_peak_event(
     plt.tight_layout()
     plt.show()    
     
+
     
+##########################
 
-# ── Main loop ─────────────────────────────────────────────────────────────────
+def init_worker(boundary_gdf, flood_dir, ens_num):
+    global FLOOD_CUBES, CATCHMENT_POLY, RAIN_CUBES, SM_CUBES, BOUNDARY_GDF
 
-# def process_events(ncl_events, event_nums, boundary_gdf, flood_outputs, method=METHOD, plot=False):
-#     """
-#     Process a list of event numbers and return results as a list of dicts.
+    CATCHMENT_POLY = boundary_gdf.geometry.iloc[0]
 
-#     Parameters
-#     ----------
-#     ncl_events     : pd.DataFrame   — full events table
-#     event_nums     : list[int]      — event numbers to process
-#     catchment_poly : shapely geom   — catchment polygon
-#     method         : str            — masking method: 'full_cell' or 'center_point'
-#     plot           : bool           — whether to plot each masked cube for checking
+    # Reset caches (important for each worker)
+    RAIN_CUBES = {}
+    SM_CUBES = {}
 
-#     Returns
-#     -------
-#     pd.DataFrame with one row per event
-#     """
-#     results = []
+    FLOOD_CUBES = {}
+    for depth in [10, 30]:
+        area = load_3d_cube(
+            f"{flood_dir}/{depth}cm/flooded_area_5km_total_Ens{ens_num}_23_{depth}cm.nc"
+        )
+        vol = load_3d_cube(
+            f"{flood_dir}/{depth}cm/flooded_volume_5km_total_Ens{ens_num}_23_{depth}cm.nc"
+        )
 
-#     # Caches — avoid reloading cubes or rebuilding masks unnecessarily
-#     cached_yr    = None
-#     cached_cube  = None
-#     cached_shape = None
-#     cached_mask  = None
+        FLOOD_CUBES[f"{depth}cm_area"] = prepare_flood_cube(area, CATCHMENT_POLY)
+        FLOOD_CUBES[f"{depth}cm_volume"]  = prepare_flood_cube(vol, CATCHMENT_POLY)
+         
+
+def process_single_event_worker(args):
+    (
+        event_num,
+        ncl_events,
+        rainfall_cube_dir,
+        sm_dir,
+        ens_num,
+        method,
+        threshold_level,
+        boundary_gdf,
+        plot
+    ) = args
+
+    global FLOOD_CUBES, RAIN_CUBES, SM_CUBES, CATCHMENT_POLY
+
+    details = get_rainfall_event_details(ncl_events, event_num)
+    year = details['yr']
+
+    # =====================================
+    # 🌧️ Rainfall (cached per year)
+    # =====================================
+    if year not in RAIN_CUBES:
+        rain_cube = get_rainfall_cube(year, ens_num, rainfall_cube_dir)
+        rain_cube = filter_closer_to_catchment(rain_cube, CATCHMENT_POLY)
+        RAIN_CUBES[year] = rain_cube
+    else:
+        rain_cube = RAIN_CUBES[year]
+
+    mask_2d = build_mask(rain_cube, CATCHMENT_POLY, method=method)
+    rain_cube_masked = apply_mask_to_cube(rain_cube, mask_2d)
+
+    peak = find_max_precip_location(rain_cube_masked,mask_2d, details['start_idx'], details['stop_idx'])
+
+    temp_profile_dict = find_temporal_profile( rain_cube_masked, details, peak, plot=plot )
+
+    # =====================================
+    # 🌊 Flood (already cached)
+    # =====================================
+    flood_stats = {}
+
+    for depth in [10, 30]:
+        flood_area = FLOOD_CUBES[f"{depth}cm_area"]
+        flood_area   = FLOOD_CUBES[f"{depth}cm_area"][event_num-1, :, :]
+        # print(flood_area.shape)
+        flood_vol  = FLOOD_CUBES[f"{depth}cm_volume"]
+        flood_vol   = FLOOD_CUBES[f"{depth}cm_volume"][event_num-1, :, :]
+        # print(flood_vol.shape)
+        analysis = analyse_peak_event(
+            rain_cube_masked,
+            peak,
+            threshold_level=threshold_level,
+            flood_area_data=flood_area.data,
+            flood_volume_data=flood_vol.data)
+
+        for k, v in analysis.items():
+            flood_stats[f"{depth}cm_{k}"] = v
+            
+        last_analysis = analysis        # will end up as depth=30 result
+        last_flood_area = flood_area    # 2D slice, matches old code
+
+    if plot:
+        plot_peak_event(
+            cube_catchment=rain_cube_masked,
+            peak=peak,
+            analysis=last_analysis,
+            flood=last_flood_area,
+            catchment_poly=CATCHMENT_POLY,
+            boundary_gdf=boundary_gdf    )
+        
+#         plot_peak_simple (cube_catchment=rain_cube_masked,
+#                           last_flood_area, peak)
+        
+
+            
+    # =====================================
+    # 🌱 Soil moisture (cached per year)
+    # =====================================
+    if year not in SM_CUBES:
+        sm_file = f"{sm_dir}/r001i1p*****_{year-1}1201-{year}1130_mrso.nc"
+        sm_cube = load_3d_cube(sm_file)
+        sm_cube = filter_closer_to_catchment(sm_cube, CATCHMENT_POLY)
+        SM_CUBES[year] = sm_cube
+    else:
+        sm_cube = SM_CUBES[year]
+
+    sm_stats = find_sm_stats(sm_dir, year, CATCHMENT_POLY, rain_cube_masked, peak, details)
     
-#     catchment_poly = boundary_gdf.geometry[60]
-
-#     for event_num in event_nums:
-        
-#         start = time.time()
-#         print(f"\nProcessing event {event_num}...")
-        
-#         # Get details needed to subset the rainfall cube from the list of events
-#         details = get_rainfall_event_details(ncl_events, event_num)
-#         yr      = details['yr']
-
-#         # Only reload cube if year has changed
-#         if yr != cached_yr:
-#             print(f"  Loading cube for year {yr}...")
-#             cached_cube = get_rainfall_cube(yr)
-#             cached_cube = filter_closer_to_catchment(cached_cube, catchment_poly, plot=False)
-#             cached_yr   = yr
-#         else:
-#             print("It's the same year")
-
-#         # Only rebuild mask if grid shape has changed (e.g. different resolution files)
-#         if cached_shape is None or cached_cube.shape[1:] != cached_shape:
-#             print(f"  Building catchment mask ({method})...")
-#             cached_mask  = build_mask(cached_cube, catchment_poly, method)
-#             cached_shape = cached_cube.shape[1:]
-#         else:
-#             print(f"  Reusing catchment mask ({method})...")
-        
-#         cube_masked = apply_mask_to_cube(cached_cube, cached_mask)
-        
-#         if plot:
-#             plot_masked_cube(cube_masked, catchment_poly, boundary_gdf, event_num)
-
-#         # 
-#         peak = find_max_precip_location(cube_masked, cached_mask, details['start_idx'], details['stop_idx'])
-        
-#         # calculate metrics on the temporal profile of rainfall at the peak timestep
-#         # also return the associated times, and values
-#         temp_profile_dict = find_temporal_profile(cube_masked, details, peak, plot = True)
-        
-#         # ===============================
-#         # FLOOD STATS
-#         # ===============================
-#         threshold_level = 0.3
-        
-#         # Create dictionary to store results
-#         flat_flood_stats = {}
-        
-#         # Have to repeat analysis twice: for flooding over 10cm and over 30cm 
-#         flooddepths = [10, 30]
-#         for depth in flooddepths:
-            
-#             # Get flood extent over whole catchment for this event
-#             whole_flood_area   = flood_outputs[f'fld_area_{depth}cm'][event_num-1, :, :]
-#             whole_flood_volume = flood_outputs[f'fld_vol_{depth}cm'][event_num-1, :, :]
-
-#             # Get flood extent/vol for the grid cell containing the maximum RAINFALL for this event
-#             flood_area_maxcell   = whole_flood_area[peak['y_idx'], peak['x_idx']]
-#             flood_volume_maxcell = whole_flood_volume[peak['y_idx'], peak['x_idx']]
-
-#             analysis = analyse_peak_event( cube_masked,peak,
-#                                          threshold_level=threshold_level,
-#                                         flood_area_data=whole_flood_area.data,
-#                                             flood_volume_data=whole_flood_volume.data)
-
-#             # Add to the results dictionary the following values
-#             flat_flood_stats.update({
-#                 f'fld_area_maxcell_{depth}cm':     float(flood_area_maxcell.data),
-#                 f'fld_vol_maxcell_{depth}cm':   float(flood_volume_maxcell.data),
-
-#                 f'fld_area_catchment_{depth}cm':   float(whole_flood_area.data.sum()),
-#                 f'fld_vol_catchment_{depth}cm': float(whole_flood_volume.data.sum()),
-
-#                 f'fld_area_under_threshold_{depth}cm': analysis.get('fld_area_under_threshold', np.nan),
-#                 f'fld_area_under_cluster_{depth}cm':   analysis.get('fld_area_under_cluster', np.nan),
-
-#                 f'fld_vol_under_threshold_{depth}cm': analysis.get('fld_vol_under_threshold', np.nan),
-#                 f'fld_vol_under_cluster_{depth}cm':   analysis.get('fld_vol_under_cluster', np.nan)})
-            
-#             # --- Find flood max location ---
-#             flood_array = whole_flood_area.data
-#             flood_y_idx, flood_x_idx = np.unravel_index(
-#                 np.nanargmax(flood_array),
-#                 flood_array.shape)
-            
-#              # --- Record the max cell values ---
-#             flooded_area_maxcell_at_max_flood = float(whole_flood_area.data[flood_y_idx, flood_x_idx])
-#             flooded_volume_maxcell_at_max_flood = float(whole_flood_volume.data[flood_y_idx, flood_x_idx])
-
-#             # --- Store in your stats dictionary ---
-#             flat_flood_stats.update({
-#                 f'flooded_area_maxcell_{depth}cm': flooded_area_maxcell_at_max_flood,
-#                 f'flooded_volume_maxcell_{depth}cm': flooded_volume_maxcell_at_max_flood})   
-            
-#             # --- Compare with rainfall peak ---
-#             same_cell_flag = ((flood_y_idx == peak['y_idx']) and 
-#                 (flood_x_idx == peak['x_idx']))
-
-#             # --- Store ---
-#             flat_flood_stats.update({ f'peak_rain_equals_peak_flood_{depth}cm': int(same_cell_flag)})
-            
-#             # Distance in grid cells (I think - although what does that mean?)
-#             distance = np.sqrt(
-#                 (flood_y_idx - peak['y_idx'])**2 +
-#                 (flood_x_idx - peak['x_idx'])**2)
-#             flat_flood_stats.update({ f'peak_distance_cells_{depth}cm': distance})
-            
-            
-#             # Distance in metres
-#             dx = flood_x_coord[flood_x_idx] - peak['x_coord']
-#             dy = flood_y_coord[flood_y_idx] - peak['y_coord']
-#             distance_m = np.sqrt(dx**2 + dy**2)
-            
-        
-#         # Summary plot
-#         plot_peak_event(cube_catchment=cube_masked,peak=peak,
-#             analysis=analysis,flood=whole_flood_area,  catchment_poly=catchment_poly,boundary_gdf=boundary_gdf)
-        
-#         # ===================================
-#         # Soil moisture
-#         # ===================================
-#         sm_stats = find_sm_stats(yr, catchment_poly, cube_masked, peak, details)
-               
-#         # Save everything to results dictionary
-#         results.append({**details, **peak, **temp_profile_dict, **flat_flood_stats, **sm_stats})
-#         print(f"  Max precip: {peak['max_precip']:.2f} at t={peak['t_global']}, "
-#               f"({peak['x_coord']:.0f}, {peak['y_coord']:.0f})")
-        
-#         end = time.time()
-        
-#         print(f"Time elapsed: {round(end - start,1)}")
-#     return pd.DataFrame(results)
-
-# def process_events(event_list, event_nums=None, boundary_gdf=None,
-#                    rainfall_cube_dir=None, sm_dir=None, flood_dir=None,
-#                    ens_num=1, method='center_point', threshold_level=0.3,
-#                    plot=False):
-#     """
-#     Process rainfall events and extract rainfall, flood, and soil moisture metrics.
-
-#     Parameters
-#     ----------
-#     event_list : pd.DataFrame
-#         Event table with at least columns ['event_num', 'start_indices', 'stop_indices', 'start_year'].
-#     event_nums : list[int] or None
-#         If given, only process these event numbers. If None, process all events.
-#     boundary_gdf : GeoDataFrame
-#         Catchment polygons.
-#     rainfall_dir, sm_dir, flood_dir : str
-#         Paths to rainfall, soil moisture, and flood outputs.
-#     ens_num : str or int
-#         Ensemble number for flood files.
-#     method : str
-#         Masking method: 'center_point' or 'full_cell'.
-#     threshold_level : float
-#         Threshold for peak event analysis.
-#     plot : bool
-#         Whether to plot events.
-
-#     Returns
-#     -------
-#     pd.DataFrame
-#         One row per processed event.
-#     """
-#     results = []
-
-#     # Select catchment geometry
-#     catchment_poly = boundary_gdf.geometry.iloc[0]
-
-#     # Select events to process
-#     if event_nums is None:
-#         event_nums = event_list['event_num'].tolist()
-
-#     # Cache soil moisture cubes by year
-#     sm_cache = {}
-
-#     # Cache flood cubes by depth/variable
-#     flood_depths = [10, 30]
-#     flood_vars = ['area', 'volume']
-#     flood_cubes = {}
-#     for depth in flood_depths:
-#         for var in flood_vars:
-#             fname = os.path.join(flood_dir, f"{depth}cm",
-#                                  f"flooded_{var}_5km_total_Ens{ens_num}_23_{depth}cm.nc")
-#             flood_cubes[f"{var}_{depth}cm"] = prepare_flood_cube(load_3d_cube(fname), catchment_poly)
-
-#     # Cache rainfall cubes by year
-#     rain_cache = {}
-#     analysis_store = {}
     
-#     for event_num in event_nums:
-#         details = get_rainfall_event_details(event_list, event_num)
-#         year = details['yr']
+    # =====================================
+    # Combine
+    # =====================================
+    return {**details, **peak, **temp_profile_dict, **flood_stats, **sm_stats}            
+            
+# def process_single_event_worker(args):
+#     (
+#         event_num,
+#         ncl_events,
+#         rainfall_cube_dir,
+#         sm_dir,
+#         ens_num,
+#         method,
+#         threshold_level,
+#         plot
+#     ) = args
 
-#         # -----------------------------
-#         # Rainfall cube
-#         # -----------------------------
-#         if year not in rain_cache:
-#             rain_cube = get_rainfall_cube(year, ens_num, rainfall_cube_dir)
-#             rain_cube = filter_closer_to_catchment(rain_cube, catchment_poly)
-#             rain_cache[year] = rain_cube
-#         else:
-#             rain_cube = rain_cache[year]
+#     global FLOOD_CUBES, RAIN_CUBES, SM_CUBES, CATCHMENT_POLY
 
-#         # -----------------------------
-#         # Build mask if needed
-#         # -----------------------------
-#         mask_2d = build_mask(rain_cube, catchment_poly, method=method)
-#         rain_cube_masked = apply_mask_to_cube(rain_cube, mask_2d)
+#     details = get_rainfall_event_details(ncl_events, event_num)
+#     year = details['yr']
 
-#         # plot_masked_cube(rain_cube_masked, catchment_poly, boundary_gdf, event_num)
+#     # =====================================
+#     # 🌧️ Rainfall (cached per year)
+#     # =====================================
+#     if year not in RAIN_CUBES:
+#         rain_cube = get_rainfall_cube(year, ens_num, rainfall_cube_dir)
+#         rain_cube = filter_closer_to_catchment(rain_cube, CATCHMENT_POLY)
+#         RAIN_CUBES[year] = rain_cube
+#     else:
+#         rain_cube = RAIN_CUBES[year]
 
-#         # -----------------------------
-#         # Peak rainfall location
-#         # -----------------------------
-#         peak = find_max_precip_location(rain_cube_masked, mask_2d,
-#                                         details['start_idx'], details['stop_idx'])
+#     mask_2d = build_mask(rain_cube, CATCHMENT_POLY, method=method)
+#     rain_cube_masked = apply_mask_to_cube(rain_cube, mask_2d)
 
-#         # Temporal metrics
-#         temp_profile_dict = find_temporal_profile(rain_cube_masked, details, peak, plot=plot)
+#     peak = find_max_precip_location(rain_cube_masked,mask_2d, details['start_idx'], details['stop_idx'])
 
-#         # -----------------------------
-#         # Flood metrics
-#         # -----------------------------
-#         flat_flood_stats = {}
-#         for depth in flood_depths:
-#             for var in flood_vars:
-#                 fld_cube = flood_cubes[f"{var}_{depth}cm"]
-#                 analysis = analyse_peak_event(rain_cube_masked, peak,
-#                                              threshold_level=threshold_level,
-#                                              flood_area_data=fld_cube.data if var=='area' else None,
-#                                              flood_volume_data=fld_cube.data if var=='volume' else None)
-#                 for k, v in analysis.items():
-#                     flat_flood_stats[f"{var}_{depth}cm_{k}"] = v
-#                 if plot ==True:
-#                     analysis_store[f"{var}_{depth}cm"] = analysis  # cache for plotting
+#     temp_profile_dict = find_temporal_profile( rain_cube_masked, details, peak, plot=plot )
 
+#     # =====================================
+#     # 🌊 Flood (already cached)
+#     # =====================================
+#     flood_stats = {}
 
-#         # -----------------------------
-#         # Plot peak event
-#         # -----------------------------
-#         if plot:
-#             # Use 10cm area as the representative analysis for plotting
-#             plot_analysis = analysis_store.get('area_10cm')
+#     for depth in [10, 30]:
+#         flood_area = FLOOD_CUBES[f"{depth}cm_area"]
+#         flood_area   = FLOOD_CUBES[f"{depth}cm_area"][event_num-1, :, :]
+#         # print(flood_area.shape)
+#         flood_vol  = FLOOD_CUBES[f"{depth}cm_volume"]
+#         flood_vol   = FLOOD_CUBES[f"{depth}cm_volume"][event_num-1, :, :]
+#         # print(flood_vol.shape)
+#         analysis = analyse_peak_event(
+#             rain_cube_masked,
+#             peak,
+#             threshold_level=threshold_level,
+#             flood_area_data=flood_area.data,
+#             flood_volume_data=flood_vol.data)
 
-#             # Get flood area cube sliced to peak timestep
-#             flood_cube_10cm = flood_cubes.get('area_10cm')
-#             flood_slice = flood_cube_10cm[event_num-1,:,:] if flood_cube_10cm is not None else None
+#         for k, v in analysis.items():
+#             flood_stats[f"{depth}cm_{k}"] = v
 
-#             plot_peak_event(
-#                 cube_catchment=rain_cube_masked,
-#                 peak=peak,
-#                 analysis=plot_analysis,
-#                 flood=flood_slice,
-#                 catchment_poly=catchment_poly,
-#                 boundary_gdf=boundary_gdf
-#             )                    
-                    
-#         # -----------------------------
-#         # Soil moisture
-#         # -----------------------------
-#         if year not in sm_cache:
-#             sm_file = os.path.join(sm_dir, f'r001i1p******_{year-1}1201-{year}1130_mrso.nc')
-#             sm_cache[year] = load_3d_cube(sm_file)
-#         sm_stats = find_sm_stats(sm_dir, year, catchment_poly, rain_cube_masked, peak, details)
-
-#         # -----------------------------
-#         # Aggregate results
-#         # -----------------------------
-#         results.append({**details, **peak, **temp_profile_dict, **flat_flood_stats, **sm_stats})
+# #     if plot:
+# #         t = peak['t_global']  # 👈 important!
+# #         plot_flood_vs_rainfall(
+# #             cube=rain_cube_masked,
+# #             flood_array=flood_area.data[t],   # 👈 correct timestep
+# #             peak=peak,
+# #             mask_2d=mask_2d,
+# #             threshold_mask=None,              # or pass if you have one
+# #             catchment_poly=CATCHMENT_POLY,
+# #             boundary_gdf=None,                # or pass if needed
+# #             buffer=2000
+# #         )         
         
-#     return pd.DataFrame(results)
+            
+#     # =====================================
+#     # 🌱 Soil moisture (cached per year)
+#     # =====================================
+#     if year not in SM_CUBES:
+#         sm_file = f"{sm_dir}/r001i1p*****_{year-1}1201-{year}1130_mrso.nc"
+#         sm_cube = load_3d_cube(sm_file)
+#         sm_cube = filter_closer_to_catchment(sm_cube, CATCHMENT_POLY)
+#         SM_CUBES[year] = sm_cube
+#     else:
+#         sm_cube = SM_CUBES[year]
+
+#     sm_stats = find_sm_stats(sm_dir, year, CATCHMENT_POLY, rain_cube_masked, peak, details)
+    
+    
+#     # =====================================
+#     # Combine
+#     # =====================================
+#     return {**details, **peak, **temp_profile_dict, **flood_stats, **sm_stats}
+
+def process_events_parallel_fast(event_nums, ncl_events, boundary_gdf,
+                                rainfall_cube_dir, sm_dir, flood_dir,
+                                ens_num, method, threshold_level,
+                                n_workers=None):
+
+    if n_workers is None:
+        n_workers = max(1, cpu_count() - 1)
+
+    args_list = [
+        (
+            event_num,
+            ncl_events,
+            rainfall_cube_dir,
+            sm_dir,
+            ens_num,
+            method,
+            threshold_level
+        )
+        for event_num in event_nums
+    ]
+
+    with Pool(
+        processes=n_workers,
+        initializer=init_worker,
+        initargs=(boundary_gdf, flood_dir, ens_num)
+    ) as pool:
+
+#         results = pool.map(process_single_event_worker, args_list)
+        #results = list(tqdm(pool.imap(process_single_event_worker, args_list),total=len(args_list)))
+        results = list(tqdm(pool.imap_unordered(process_single_event_worker, args_list),total=len(args_list),desc="Processing events"))
+
+    return pd.DataFrame(results)
+
+
+def process_events_serial_fast(event_nums, ncl_events, boundary_gdf,
+                              rainfall_cube_dir, sm_dir, flood_dir,
+                              ens_num, method, threshold_level, plot):
+
+    # Manually initialise (same as worker init)
+    init_worker(boundary_gdf, flood_dir, ens_num)
+
+    args_list = [
+        (
+            event_num,
+            ncl_events,
+            rainfall_cube_dir,
+            sm_dir,
+            ens_num,
+            method,
+            threshold_level,
+            boundary_gdf,
+            plot
+        )
+        for event_num in event_nums
+    ]
+
+    results = []
+
+    for args in tqdm(args_list, desc="Processing events (serial)"):
+        results.append(process_single_event_worker(args))
+
+    return pd.DataFrame(results)

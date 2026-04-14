@@ -63,6 +63,7 @@ def init_worker(boundary_gdf, flood_dir, ens_num):
 
         FLOOD_CUBES[f"{depth}cm_area"] = prepare_flood_cube(area, CATCHMENT_POLY)
         FLOOD_CUBES[f"{depth}cm_volume"]  = prepare_flood_cube(vol, CATCHMENT_POLY)
+         
 
 def process_single_event_worker(args):
     (
@@ -93,16 +94,9 @@ def process_single_event_worker(args):
     mask_2d = build_mask(rain_cube, CATCHMENT_POLY, method=method)
     rain_cube_masked = apply_mask_to_cube(rain_cube, mask_2d)
 
-    peak = find_max_precip_location(
-        rain_cube_masked,
-        mask_2d,
-        details['start_idx'],
-        details['stop_idx']
-    )
+    peak = find_max_precip_location(rain_cube_masked,mask_2d, details['start_idx'], details['stop_idx'])
 
-    temp_profile_dict = find_temporal_profile(
-        rain_cube_masked, details, peak, plot=False
-    )
+    temp_profile_dict = find_temporal_profile( rain_cube_masked, details, peak, plot=False )
 
     # =====================================
     # 🌊 Flood (already cached)
@@ -111,16 +105,17 @@ def process_single_event_worker(args):
 
     for depth in [10, 30]:
         flood_area = FLOOD_CUBES[f"{depth}cm_area"]
-        print(flood_area.shape)
+        flood_area   = FLOOD_CUBES[f"{depth}cm_area"][event_num-1, :, :]
+        # print(flood_area.shape)
         flood_vol  = FLOOD_CUBES[f"{depth}cm_volume"]
-        print(flood_vol.shape)
+        flood_vol   = FLOOD_CUBES[f"{depth}cm_volume"][event_num-1, :, :]
+        # print(flood_vol.shape)
         analysis = analyse_peak_event(
             rain_cube_masked,
             peak,
             threshold_level=threshold_level,
             flood_area_data=flood_area.data,
-            flood_volume_data=flood_vol.data
-        )
+            flood_volume_data=flood_vol.data)
 
         for k, v in analysis.items():
             flood_stats[f"{depth}cm_{k}"] = v
@@ -175,8 +170,37 @@ def process_events_parallel_fast(event_nums, ncl_events, boundary_gdf,
 
     return pd.DataFrame(results)
 
+
+def process_events_serial_fast(event_nums, ncl_events, boundary_gdf,
+                              rainfall_cube_dir, sm_dir, flood_dir,
+                              ens_num, method, threshold_level):
+
+    # Manually initialise (same as worker init)
+    init_worker(boundary_gdf, flood_dir, ens_num)
+
+    args_list = [
+        (
+            event_num,
+            ncl_events,
+            rainfall_cube_dir,
+            sm_dir,
+            ens_num,
+            method,
+            threshold_level
+        )
+        for event_num in event_nums
+    ]
+
+    results = []
+
+    for args in tqdm(args_list, desc="Processing events (serial)"):
+        results.append(process_single_event_worker(args))
+
+    return pd.DataFrame(results)
+
+
 # ENS_LIST = ['04', '05', '06', '07', '08', '09', '10', '11', '12', '13', '15']
-ENS_LIST = ['01']
+ENS_LIST = ['11', '12', '13', '15']
 
 
 if __name__ == "__main__":
