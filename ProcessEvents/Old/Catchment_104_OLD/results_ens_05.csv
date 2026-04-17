@@ -1,0 +1,227 @@
+event_num,yr,start_idx,stop_idx,max_precip,t_global,x_idx,y_idx,x_coord,y_coord,total_acc,peak_position_ratio,d50,gini,time_based_std,dry_ratio,max_quartile_index,times,values,10cm_thr0.3_peak_value,10cm_thr0.3_threshold,10cm_thr0.3_threshold_mask,10cm_thr0.3_cluster_mask,10cm_thr0.3_neighbourhood_sum,10cm_thr0.3_fld_area_at_peak,10cm_thr0.3_fld_vol_at_peak,10cm_thr0.3_fld_area_under_threshold,10cm_thr0.3_fld_vol_under_threshold,10cm_thr0.3_fld_area_under_cluster,10cm_thr0.3_fld_vol_under_cluster,10cm_thr0.5_peak_value,10cm_thr0.5_threshold,10cm_thr0.5_threshold_mask,10cm_thr0.5_cluster_mask,10cm_thr0.5_neighbourhood_sum,10cm_thr0.5_fld_area_at_peak,10cm_thr0.5_fld_vol_at_peak,10cm_thr0.5_fld_area_under_threshold,10cm_thr0.5_fld_vol_under_threshold,10cm_thr0.5_fld_area_under_cluster,10cm_thr0.5_fld_vol_under_cluster,10cm_thr0.7_peak_value,10cm_thr0.7_threshold,10cm_thr0.7_threshold_mask,10cm_thr0.7_cluster_mask,10cm_thr0.7_neighbourhood_sum,10cm_thr0.7_fld_area_at_peak,10cm_thr0.7_fld_vol_at_peak,10cm_thr0.7_fld_area_under_threshold,10cm_thr0.7_fld_vol_under_threshold,10cm_thr0.7_fld_area_under_cluster,10cm_thr0.7_fld_vol_under_cluster,10cm_thr0.9_peak_value,10cm_thr0.9_threshold,10cm_thr0.9_threshold_mask,10cm_thr0.9_cluster_mask,10cm_thr0.9_neighbourhood_sum,10cm_thr0.9_fld_area_at_peak,10cm_thr0.9_fld_vol_at_peak,10cm_thr0.9_fld_area_under_threshold,10cm_thr0.9_fld_vol_under_threshold,10cm_thr0.9_fld_area_under_cluster,10cm_thr0.9_fld_vol_under_cluster,30cm_thr0.3_peak_value,30cm_thr0.3_threshold,30cm_thr0.3_threshold_mask,30cm_thr0.3_cluster_mask,30cm_thr0.3_neighbourhood_sum,30cm_thr0.3_fld_area_at_peak,30cm_thr0.3_fld_vol_at_peak,30cm_thr0.3_fld_area_under_threshold,30cm_thr0.3_fld_vol_under_threshold,30cm_thr0.3_fld_area_under_cluster,30cm_thr0.3_fld_vol_under_cluster,30cm_thr0.5_peak_value,30cm_thr0.5_threshold,30cm_thr0.5_threshold_mask,30cm_thr0.5_cluster_mask,30cm_thr0.5_neighbourhood_sum,30cm_thr0.5_fld_area_at_peak,30cm_thr0.5_fld_vol_at_peak,30cm_thr0.5_fld_area_under_threshold,30cm_thr0.5_fld_vol_under_threshold,30cm_thr0.5_fld_area_under_cluster,30cm_thr0.5_fld_vol_under_cluster,30cm_thr0.7_peak_value,30cm_thr0.7_threshold,30cm_thr0.7_threshold_mask,30cm_thr0.7_cluster_mask,30cm_thr0.7_neighbourhood_sum,30cm_thr0.7_fld_area_at_peak,30cm_thr0.7_fld_vol_at_peak,30cm_thr0.7_fld_area_under_threshold,30cm_thr0.7_fld_vol_under_threshold,30cm_thr0.7_fld_area_under_cluster,30cm_thr0.7_fld_vol_under_cluster,30cm_thr0.9_peak_value,30cm_thr0.9_threshold,30cm_thr0.9_threshold_mask,30cm_thr0.9_cluster_mask,30cm_thr0.9_neighbourhood_sum,30cm_thr0.9_fld_area_at_peak,30cm_thr0.9_fld_vol_at_peak,30cm_thr0.9_fld_area_under_threshold,30cm_thr0.9_fld_vol_under_threshold,30cm_thr0.9_fld_area_under_cluster,30cm_thr0.9_fld_vol_under_cluster,mean_sm_2_before_event,mean_sm_3_before_event,mean_sm_4_before_event,mean_sm_5_before_event,mean_sm_catchment,hc_at_peak,ensemble
+1,1994,6332,6350,35.62394332885742,6340,80,135,202500.0,642500.0,48.75668,0.47058823529411764,45.10682115079373,0.8910063306960483,0.07432813654119196,11.11111111111111,1,"DatetimeIndex(['1994-08-24 20:00:00', '1994-08-24 21:00:00',
+               '1994-08-24 22:00:00', '1994-08-24 23:00:00',
+               '1994-08-25 00:00:00', '1994-08-25 01:00:00',
+               '1994-08-25 02:00:00', '1994-08-25 03:00:00',
+               '1994-08-25 04:00:00', '1994-08-25 05:00:00',
+               '1994-08-25 06:00:00', '1994-08-25 07:00:00',
+               '1994-08-25 08:00:00', '1994-08-25 09:00:00',
+               '1994-08-25 10:00:00', '1994-08-25 11:00:00',
+               '1994-08-25 12:00:00', '1994-08-25 13:00:00'],
+              dtype='datetime64[ns]', freq=None)","[9.8995154e-04 2.6528891e-03 3.0244952e-03 4.2703566e-01 8.9256719e-02
+ 1.4974868e-02 2.4480302e-02 1.3445344e-02 3.5623943e+01 1.8391913e+00
+ 3.7141218e+00 6.8125343e+00 1.8995945e-01 1.0689649e-03 1.2175382e-06
+ 2.3914086e-07 1.5719685e-07 1.0284615e-06]",35.62394332885742,10.687182998657226,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.006300000008195639,1039.5,0.0,0.0,35.62394332885742,17.81197166442871,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.006300000008195639,1039.5,0.0,0.0,35.62394332885742,24.936760330200194,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.0,0.0,0.0,0.0,35.62394332885742,32.061548995971684,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.0,0.0,0.0,0.0,35.62394332885742,10.687182998657226,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.0,0.0,0.0,0.0,35.62394332885742,17.81197166442871,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.0,0.0,0.0,0.0,35.62394332885742,24.936760330200194,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.0,0.0,0.0,0.0,35.62394332885742,32.061548995971684,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",32.22568321228027,0.0,0.0,0.0,0.0,0.0,0.0,93.8428955078125,91.50521087646484,90.30189323425293,89.66501312255859,21.29948595286067,1.0715113878250122,05
+2,1998,5973,6002,42.44690704345703,5989,70,141,152500.0,672500.0,51.37547,0.5714285714285714,55.67101729962603,0.9483576498564319,0.04193585408812761,0.0,2,"DatetimeIndex(['1998-08-09 21:00:00', '1998-08-09 22:00:00',
+               '1998-08-09 23:00:00', '1998-08-10 00:00:00',
+               '1998-08-10 01:00:00', '1998-08-10 02:00:00',
+               '1998-08-10 03:00:00', '1998-08-10 04:00:00',
+               '1998-08-10 05:00:00', '1998-08-10 06:00:00',
+               '1998-08-10 07:00:00', '1998-08-10 08:00:00',
+               '1998-08-10 09:00:00', '1998-08-10 10:00:00',
+               '1998-08-10 11:00:00', '1998-08-10 12:00:00',
+               '1998-08-10 13:00:00', '1998-08-10 14:00:00',
+               '1998-08-10 15:00:00', '1998-08-10 16:00:00',
+               '1998-08-10 17:00:00', '1998-08-10 18:00:00',
+               '1998-08-10 19:00:00', '1998-08-10 20:00:00',
+               '1998-08-10 21:00:00', '1998-08-10 22:00:00',
+               '1998-08-10 23:00:00', '1998-08-11 00:00:00',
+               '1998-08-11 01:00:00'],
+              dtype='datetime64[ns]', freq=None)","[3.9009734e-05 1.2313927e-04 1.9039121e-02 2.4431346e-01 1.2660524e-02
+ 8.5137971e-03 5.6903036e-03 2.2701515e-02 6.6702694e-02 4.3317575e-02
+ 1.8405293e-03 1.9512051e-03 1.1206192e-02 2.1612358e-01 5.4771148e-02
+ 2.4847785e-02 4.2446907e+01 7.8884892e+00 1.3277162e-03 1.3633306e-01
+ 1.6737744e-01 5.8121711e-04 3.9062706e-05 1.6763386e-04 4.3923483e-06
+ 3.6240666e-04 3.9007831e-05 1.8871635e-06 1.7177756e-06]",42.44690704345703,12.73407211303711,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.21149998903274536,43267.5,0.22769999504089355,47647.80078125,0.22769999504089355,47647.80078125,42.44690704345703,21.223453521728516,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.21149998903274536,43267.5,0.22769999504089355,47647.80078125,0.22769999504089355,47647.80078125,42.44690704345703,29.71283493041992,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.21149998903274536,43267.5,0.21149998903274536,43267.5,0.21149998903274536,43267.5,42.44690704345703,38.20221633911133,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.21149998903274536,43267.5,0.21149998903274536,43267.5,0.21149998903274536,43267.5,42.44690704345703,12.73407211303711,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.007199999876320362,6643.7998046875,0.011699999682605267,8798.400390625,0.011699999682605267,8798.400390625,42.44690704345703,21.223453521728516,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.007199999876320362,6643.7998046875,0.011699999682605267,8798.400390625,0.011699999682605267,8798.400390625,42.44690704345703,29.71283493041992,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.007199999876320362,6643.7998046875,0.007199999876320362,6643.7998046875,0.007199999876320362,6643.7998046875,42.44690704345703,38.20221633911133,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",53.47212629287969,0.007199999876320362,6643.7998046875,0.007199999876320362,6643.7998046875,0.007199999876320362,6643.7998046875,84.07222366333008,84.52391560872395,85.04013442993164,85.23190155029297,22.54639752685698,1.0883958339691162,05

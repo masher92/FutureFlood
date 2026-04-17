@@ -1,0 +1,228 @@
+event_num,yr,start_idx,stop_idx,max_precip,t_global,x_idx,y_idx,x_coord,y_coord,total_acc,peak_position_ratio,d50,gini,time_based_std,dry_ratio,max_quartile_index,times,values,10cm_thr0.3_peak_value,10cm_thr0.3_threshold,10cm_thr0.3_threshold_mask,10cm_thr0.3_cluster_mask,10cm_thr0.3_neighbourhood_sum,10cm_thr0.3_fld_area_at_peak,10cm_thr0.3_fld_vol_at_peak,10cm_thr0.3_fld_area_under_threshold,10cm_thr0.3_fld_vol_under_threshold,10cm_thr0.3_fld_area_under_cluster,10cm_thr0.3_fld_vol_under_cluster,10cm_thr0.5_peak_value,10cm_thr0.5_threshold,10cm_thr0.5_threshold_mask,10cm_thr0.5_cluster_mask,10cm_thr0.5_neighbourhood_sum,10cm_thr0.5_fld_area_at_peak,10cm_thr0.5_fld_vol_at_peak,10cm_thr0.5_fld_area_under_threshold,10cm_thr0.5_fld_vol_under_threshold,10cm_thr0.5_fld_area_under_cluster,10cm_thr0.5_fld_vol_under_cluster,10cm_thr0.7_peak_value,10cm_thr0.7_threshold,10cm_thr0.7_threshold_mask,10cm_thr0.7_cluster_mask,10cm_thr0.7_neighbourhood_sum,10cm_thr0.7_fld_area_at_peak,10cm_thr0.7_fld_vol_at_peak,10cm_thr0.7_fld_area_under_threshold,10cm_thr0.7_fld_vol_under_threshold,10cm_thr0.7_fld_area_under_cluster,10cm_thr0.7_fld_vol_under_cluster,10cm_thr0.9_peak_value,10cm_thr0.9_threshold,10cm_thr0.9_threshold_mask,10cm_thr0.9_cluster_mask,10cm_thr0.9_neighbourhood_sum,10cm_thr0.9_fld_area_at_peak,10cm_thr0.9_fld_vol_at_peak,10cm_thr0.9_fld_area_under_threshold,10cm_thr0.9_fld_vol_under_threshold,10cm_thr0.9_fld_area_under_cluster,10cm_thr0.9_fld_vol_under_cluster,30cm_thr0.3_peak_value,30cm_thr0.3_threshold,30cm_thr0.3_threshold_mask,30cm_thr0.3_cluster_mask,30cm_thr0.3_neighbourhood_sum,30cm_thr0.3_fld_area_at_peak,30cm_thr0.3_fld_vol_at_peak,30cm_thr0.3_fld_area_under_threshold,30cm_thr0.3_fld_vol_under_threshold,30cm_thr0.3_fld_area_under_cluster,30cm_thr0.3_fld_vol_under_cluster,30cm_thr0.5_peak_value,30cm_thr0.5_threshold,30cm_thr0.5_threshold_mask,30cm_thr0.5_cluster_mask,30cm_thr0.5_neighbourhood_sum,30cm_thr0.5_fld_area_at_peak,30cm_thr0.5_fld_vol_at_peak,30cm_thr0.5_fld_area_under_threshold,30cm_thr0.5_fld_vol_under_threshold,30cm_thr0.5_fld_area_under_cluster,30cm_thr0.5_fld_vol_under_cluster,30cm_thr0.7_peak_value,30cm_thr0.7_threshold,30cm_thr0.7_threshold_mask,30cm_thr0.7_cluster_mask,30cm_thr0.7_neighbourhood_sum,30cm_thr0.7_fld_area_at_peak,30cm_thr0.7_fld_vol_at_peak,30cm_thr0.7_fld_area_under_threshold,30cm_thr0.7_fld_vol_under_threshold,30cm_thr0.7_fld_area_under_cluster,30cm_thr0.7_fld_vol_under_cluster,30cm_thr0.9_peak_value,30cm_thr0.9_threshold,30cm_thr0.9_threshold_mask,30cm_thr0.9_cluster_mask,30cm_thr0.9_neighbourhood_sum,30cm_thr0.9_fld_area_at_peak,30cm_thr0.9_fld_vol_at_peak,30cm_thr0.9_fld_area_under_threshold,30cm_thr0.9_fld_vol_under_threshold,30cm_thr0.9_fld_area_under_cluster,30cm_thr0.9_fld_vol_under_cluster,mean_sm_2_before_event,mean_sm_3_before_event,mean_sm_4_before_event,mean_sm_5_before_event,mean_sm_catchment,hc_at_peak,ensemble
+1,1993,5395,5428,30.255380630493164,5409,78,135,192500.0,642500.0,57.430347,0.4375,42.96630006151461,0.9335807661218498,0.02237226960959808,12.121212121212121,1,"DatetimeIndex(['1993-07-15 19:00:00', '1993-07-15 20:00:00',
+               '1993-07-15 21:00:00', '1993-07-15 22:00:00',
+               '1993-07-15 23:00:00', '1993-07-16 00:00:00',
+               '1993-07-16 01:00:00', '1993-07-16 02:00:00',
+               '1993-07-16 03:00:00', '1993-07-16 04:00:00',
+               '1993-07-16 05:00:00', '1993-07-16 06:00:00',
+               '1993-07-16 07:00:00', '1993-07-16 08:00:00',
+               '1993-07-16 09:00:00', '1993-07-16 10:00:00',
+               '1993-07-16 11:00:00', '1993-07-16 12:00:00',
+               '1993-07-16 13:00:00', '1993-07-16 14:00:00',
+               '1993-07-16 15:00:00', '1993-07-16 16:00:00',
+               '1993-07-16 17:00:00', '1993-07-16 18:00:00',
+               '1993-07-16 19:00:00', '1993-07-16 20:00:00',
+               '1993-07-16 21:00:00', '1993-07-16 22:00:00',
+               '1993-07-16 23:00:00', '1993-07-17 00:00:00',
+               '1993-07-17 01:00:00', '1993-07-17 02:00:00',
+               '1993-07-17 03:00:00'],
+              dtype='datetime64[ns]', freq=None)","[6.61569857e-07 1.04221351e-06 2.21844152e-06 4.20953302e-06
+ 2.73185200e-03 7.55399745e-03 2.73291022e-04 3.27761632e-06
+ 5.85638691e-06 2.49620304e-02 1.10543452e-01 1.31164536e-01
+ 1.59209424e-06 5.77011061e+00 3.02553806e+01 2.10258598e+01
+ 7.27461129e-02 2.52306222e-07 4.27090868e-07 1.47447304e-06
+ 3.92710185e-03 2.40603946e-02 1.10645415e-04 9.21836545e-06
+ 1.61295063e-07 4.21252167e-07 9.51232948e-07 1.96810583e-06
+ 2.29878406e-05 2.97454419e-04 3.50744405e-04 1.34356378e-04
+ 8.71003795e-05]",30.255380630493164,9.076614189147948,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0017999999690800905,255.60000610351562,0.0017999999690800905,255.60000610351562,30.255380630493164,15.127690315246582,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,30.255380630493164,21.178766441345214,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,30.255380630493164,27.22984256744385,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,30.255380630493164,9.076614189147948,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,30.255380630493164,15.127690315246582,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,30.255380630493164,21.178766441345214,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,30.255380630493164,27.22984256744385,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",31.165199995040894,0.0,0.0,0.0,0.0,0.0,0.0,81.66823196411133,81.88477834065755,82.15507888793945,82.45809326171874,20.426199432561525,1.090000033378601,06
+2,1998,5150,5161,31.878658294677734,5151,79,135,197500.0,642500.0,40.542145,0.1,4.948666544522664,0.8515453108399202,0.046220238302622084,27.27272727272727,0,"DatetimeIndex(['1998-07-05 14:00:00', '1998-07-05 15:00:00',
+               '1998-07-05 16:00:00', '1998-07-05 17:00:00',
+               '1998-07-05 18:00:00', '1998-07-05 19:00:00',
+               '1998-07-05 20:00:00', '1998-07-05 21:00:00',
+               '1998-07-05 22:00:00', '1998-07-05 23:00:00',
+               '1998-07-06 00:00:00'],
+              dtype='datetime64[ns]', freq=None)","[4.4953861e+00 3.1878658e+01 4.1680841e+00 2.3131076e-06 2.4795559e-06
+ 2.7358012e-06 4.1526923e-06 2.0354787e-07 5.2443863e-07 3.0847897e-07
+ 0.0000000e+00]",31.878658294677734,9.56359748840332,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,15.939329147338867,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,22.315060806274413,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,28.690792465209963,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,9.56359748840332,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,15.939329147338867,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,22.315060806274413,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,31.878658294677734,28.690792465209963,"[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]","[[False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]
+ ...
+ [False False False ... False False False]
+ [False False False ... False False False]
+ [False False False ... False False False]]",11.062384450808167,0.0,0.0,0.0,0.0,0.0,0.0,86.41534423828125,86.72601572672527,87.07816505432129,87.47291259765625,19.9106972669806,1.090000033378601,06
