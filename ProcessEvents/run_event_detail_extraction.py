@@ -22,14 +22,14 @@ OUT_DIR = '/scratch/hydro4/users/kv25483/FutureFlood/Data/EventDetails/'
 catchment_lookup = pd.read_csv("/scratch/hydro4/users/la17355/FUTURE-FLOOD/Data/CEH_catchments/CEH_IHU_with_coastline/hyd_areas_GB_with_subcatchments_no_spaces.csv")
 catchment_lookup_dict = dict(zip(catchment_lookup["HA_NUM"],catchment_lookup["HA_NAME"]))
 
-CATCHMENT_NUM = 102
-CATCHMENT_NAME = catchment_lookup_dict[str(CATCHMENT_NUM)]
+# CATCHMENT_NUM = 102
+# CATCHMENT_NAME = catchment_lookup_dict[str(CATCHMENT_NUM)]
 
 # ── Load inputs ───────────────────────────────────────────────────────────────
-catchments = gpd.read_file(MOLLY_DIR_FF + "Data/CatchmentShapefiles/hyd_areas_GB_with_subcatchments.shp")
-boundary_gdf = catchments[catchments['HA_NUM'] == str(CATCHMENT_NUM)]
-boundary_gdf.reset_index(inplace=True, drop=True)
-catchment_poly = boundary_gdf.geometry[0]
+# catchments = gpd.read_file(MOLLY_DIR_FF + "Data/CatchmentShapefiles/hyd_areas_GB_with_subcatchments.shp")
+# boundary_gdf = catchments[catchments['HA_NUM'] == str(CATCHMENT_NUM)]
+# boundary_gdf.reset_index(inplace=True, drop=True)
+# catchment_poly = boundary_gdf.geometry[0]
 
 # Per-worker global caches
 FLOOD_CUBES = None
@@ -46,7 +46,7 @@ ENSEMBLE_MEMBERS = ['01', '04', '05', '06', '07', '08', '09', '10', '11', '12', 
 def check_which_files_to_process(ha_num):
     ### check if the outputs already exist, if they do, exclude this catchment
     CATCHMENT_OUT_DIR = os.path.join(OUT_DIR, f"Catchment_{ha_num}")
-    print(CATCHMENT_OUT_DIR)
+    # print(CATCHMENT_OUT_DIR)
     if os.path.exists(os.path.join(CATCHMENT_OUT_DIR, f"results_all_ensembles.csv")):
         return False
     
@@ -60,7 +60,7 @@ def check_which_files_to_process(ha_num):
                 if not os.path.exists(os.path.join(out_dir, fname)):
                     return False
                 else:
-                    print("5km outputs created already")
+                    # print("5km outputs created already")
                     return True
 
 def main():
@@ -76,7 +76,7 @@ def main():
     catchments_to_run = {c for c in catchment_numbers if check_which_files_to_process(c)}
     print(f"{len(catchments_to_run)} catchments to process: {sorted(catchments_to_run)}")
 
-    for CATCHMENT_NUM in sorted([104]):
+    for CATCHMENT_NUM in sorted(catchments_to_run):
 
         CATCHMENT_NAME = catchment_lookup_dict[str(CATCHMENT_NUM)]
         CATCHMENT_OUT_DIR = os.path.join(OUT_DIR, f"Catchment_{CATCHMENT_NUM}")
@@ -103,8 +103,7 @@ def main():
 
                 rainfall_events = pd.read_csv(RAINFALL_CSV_DIR + f"{CATCHMENT_NAME}_{ens}_full_events_with_event_nums.csv")
                 event_nums_to_process = range(1, len(rainfall_events) + 1)
-                
-                event_nums_to_process = range(1, 3)
+                # event_nums_to_process = range(1, 3)
 
                 results = process_events_parallel_fast(
                     catchment_num     = CATCHMENT_NUM,

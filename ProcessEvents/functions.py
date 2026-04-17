@@ -453,70 +453,102 @@ def plot_flood_vs_rainfall(
     
 THRESHOLD_LEVELS = [0.3, 0.5, 0.7, 0.9]
 
-def analyse_peak_event(cube_catchment, peak, flood_area_data=None, flood_volume_data=None, 
-                       diagonal=True, neighbourhood_size=1, threshold_levels=THRESHOLD_LEVELS):
-    '''
-    Spatial analysis around a rainfall peak at a single timestep, with optional linkage to flooding.
-    Returns results for multiple threshold levels.
-    '''
-    
-    # 1. Extract the rainfall field at the peak time ('t_global')
-    peak_slice = cube_catchment[peak['t_global']]
-    rain = peak_slice.data.copy().astype(float)
-    
-    # 2. Clean invalid values
-    rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
-    
-    # 3. Identify the peak rainfall value
-    peak_value = rain[peak['y_idx'], peak['x_idx']]
-    y, x = peak['y_idx'], peak['x_idx']
+def analyse_peak_event(
+    cube_catchment,
+    peak,
+    flood_area_data=None,
+    flood_volume_data=None,
+    diagonal=True,
+    neighbourhood_size=1,
+    threshold_levels=THRESHOLD_LEVELS
+):
+    """
+    Spatial analysis around a rainfall peak at a single timestep,
+    with linkage to flooding.
+    """
 
-    # 4. Compute neighbourhood sum once (same regardless of threshold)
+    # -------------------------------------------------
+    # 1. Extract rainfall at peak timestep
+    # -------------------------------------------------
+    rain = cube_catchment.data[peak['t_global']].astype(np.float32)
+
+    # Clean invalid values in-place style (no full copy needed)
+    rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
+
+    # -------------------------------------------------
+    # 2. Peak value + location
+    # -------------------------------------------------
+    y, x = peak['y_idx'], peak['x_idx']
+    peak_value = rain[y, x]
+
+    # -------------------------------------------------
+    # 3. Neighbourhood metric (independent of threshold)
+    # -------------------------------------------------
     n = neighbourhood_size
     y0, y1 = max(0, y - n), min(rain.shape[0], y + n + 1)
     x0, x1 = max(0, x - n), min(rain.shape[1], x + n + 1)
-    neighbourhood = rain[y0:y1, x0:x1]
-    neighbourhood_sum = float(np.nansum(neighbourhood) - peak_value)
 
-    # 5. Flood values at peak cell (same regardless of threshold)
+    neighbourhood_sum = float(np.nansum(rain[y0:y1, x0:x1]) - peak_value)
+
+    # -------------------------------------------------
+    # 4. Flood at peak cell (constant across thresholds)
+    # -------------------------------------------------
     peak_flood_stats = {}
     if flood_area_data is not None:
         peak_flood_stats['fld_area_at_peak'] = float(flood_area_data[y, x])
     if flood_volume_data is not None:
         peak_flood_stats['fld_vol_at_peak'] = float(flood_volume_data[y, x])
 
+    # -------------------------------------------------
+    # 5. Precompute connectivity structure ONCE
+    # -------------------------------------------------
+    structure = generate_binary_structure(2, 2) if diagonal else None
+
+    # -------------------------------------------------
     # 6. Loop over thresholds
+    # -------------------------------------------------
     all_results = {}
-    for threshold_level in threshold_levels:
 
-        threshold = threshold_level * peak_value
-        threshold_mask = (rain >= threshold) & (~np.isnan(rain))
+    for thr in threshold_levels:
 
-        if not diagonal:
-            labeled, _ = label(threshold_mask)
-        else:
-            structure = generate_binary_structure(2, 2)
-            labeled, _ = label(threshold_mask, structure=structure)
+        threshold = thr * peak_value
 
+        # --- binary exceedance mask ---
+        threshold_mask = rain >= threshold
+
+        # --- clustering (only thing we actually need label for) ---
+        labeled, _ = label(threshold_mask, structure=structure)
         peak_label = labeled[y, x]
         cluster_mask = (labeled == peak_label)
 
+        # -------------------------------------------------
+        # 7. Flood aggregation (NO np.where needed)
+        # -------------------------------------------------
         flood_stats = {}
-        for mask_name, mask in [('threshold', threshold_mask), ('cluster', cluster_mask)]:
-            if flood_area_data is not None:
-                flood_stats[f'fld_area_under_{mask_name}'] = float(np.where(mask, flood_area_data, 0).sum())
-            if flood_volume_data is not None:
-                flood_stats[f'fld_vol_under_{mask_name}'] = float(np.where(mask, flood_volume_data, 0).sum())
 
-        all_results[threshold_level] = {
-            'peak_value':        float(peak_value),
-            'threshold':         float(threshold),
-            'threshold_mask':    threshold_mask,
-            'cluster_mask':      cluster_mask,
+        if flood_area_data is not None:
+            flood_stats[f'fld_area_under_threshold'] = float(
+                flood_area_data[threshold_mask].sum())
+            flood_stats[f'fld_area_under_cluster'] = float(
+                flood_area_data[cluster_mask].sum())
+
+        if flood_volume_data is not None:
+            flood_stats[f'fld_vol_under_threshold'] = float(
+                flood_volume_data[threshold_mask].sum())
+            flood_stats[f'fld_vol_under_cluster'] = float(
+                flood_volume_data[cluster_mask].sum())
+
+        # -------------------------------------------------
+        # 8. Store minimal required outputs
+        # -------------------------------------------------
+        all_results[thr] = {
+            'peak_value': float(peak_value),
+            'threshold': float(threshold),
             'neighbourhood_sum': neighbourhood_sum,
             **peak_flood_stats,
-            **flood_stats,
-        }
+            **flood_stats}
+
+        # NOTE: masks are NOT returned (major memory saving)
 
     return all_results
     
@@ -754,7 +786,7 @@ def process_single_event_worker(args):
             rain_cube_masked = apply_mask_to_cube(rain_cube, mask_2d)
             RAIN_CUBES[year] = (rain_cube_masked, mask_2d)
         else:
-            rain_cube, mask_2d = RAIN_CUBES[year]            
+            rain_cube_masked, mask_2d = RAIN_CUBES[year]            
 
         peak = find_max_precip_location(rain_cube_masked,mask_2d, details['start_idx'], details['stop_idx'])
         
@@ -780,12 +812,13 @@ def process_single_event_worker(args):
             # analysis is now {0.3: {...}, 0.5: {...}, 0.7: {...}, 0.9: {...}}
             for threshold_level, stats in analysis.items():
                 for k, v in stats.items():
-                    flood_stats[f"{depth}cm_thr{threshold_level}_{k}"] = v
-
-            last_analysis = analysis        # will end up as depth=30 result
-            last_flood_area = flood_area    # 2D slice, matches old code
+                    # flood_stats[f"{depth}cm_thr{threshold_level}_{k}"] = v
+                    flood_stats[(depth, threshold_level, k)] = v
 
         if plot_spatial:
+            last_analysis = analysis        # will end up as depth=30 result
+            last_flood_area = flood_area    # 2D slice, matches old code
+            
             plot_peak_event(
                 cube_catchment=rain_cube_masked,
                 peak=peak,
