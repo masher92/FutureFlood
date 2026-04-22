@@ -55,8 +55,6 @@ for catchment_num in catchments_to_run:
         rainfall_events = pd.read_csv(RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv")
         # Add variable giving each event a number
         rainfall_events['event_num'] = range(1, len(rainfall_events) + 1)
-        # Add year column
-        rainfall_events['year'] = rainfall_events['event_num'].map(lambda ev: event_details_cache[ev]['yr'])
         
         # Establish filepath where netCDF of rainfall data lives for this ensemble member
         rainfall_cube_dir = f"/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/{ens_num}/"
@@ -82,7 +80,7 @@ for catchment_num in catchments_to_run:
         print(f"Creating a mask for EM{ens_num} in {round(time.time() - start_time1, 2)}s")    
 
         # ---- PROCESS BY YEAR ----
-        for year, events_in_year in rainfall_events.groupby('year'):
+        for year, events_in_year in rainfall_events.groupby('start_year'):
             start_time_total = time.time()
             print(f"\nProcessing year {year} with {len(events_in_year)} events")
 
@@ -119,7 +117,6 @@ for catchment_num in catchments_to_run:
 
                 # Metadata
                 this_event_results['ens'] = ens_num
-                this_event_results['year'] = event_details['start_year']
                 this_event_results['start_idx'] = event_details['start_idx']
                 this_event_results['stop_idx'] = event_details['stop_idx']
 
@@ -132,7 +129,7 @@ for catchment_num in catchments_to_run:
                 # The find_temporal_profile function then searches this 1D cube and extracts rainfall between the start and stop index
                 # These rainfall values and times are saved and then also a number of temporal profile variables are calculated
                 # These are added to the overall results dictionary
-                rainfall_at_peak = get_data_at_peak_cell(year_cube, this_event_results)
+                rainfall_at_peak = get_data_at_peak_cell(year_cube, this_event_results, 'x_idx', 'y_idx')
                 temp_profile_dict = find_temporal_profile(rainfall_at_peak, this_event_results, plot=False)
                 this_event_results = {**this_event_results, **temp_profile_dict}
                 
@@ -144,7 +141,7 @@ for catchment_num in catchments_to_run:
             
             # Save the results for this EM
             results_this_ens_df = pd.DataFrame(results_this_ens)
-            results_this_ens_df.to_pickle(os.path.join(catchment_out, f"{catchment_name}_EM{ens_num}.pkl"))
+            # results_this_ens_df.to_pickle(os.path.join(catchment_out, f"{catchment_name}_EM{ens_num}.pkl"))
             
             # ---- CLEAN UP MEMORY ----
             del year_cube
