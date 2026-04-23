@@ -40,7 +40,7 @@ def find_max_precip_location(cube, start_idx, stop_idx, x_offset=0, y_offset=0, 
         data = np.where(mask_2d, data, np.nan)
 
     flat_index = np.nanargmax(data)
-    print(f"Max precip: {np.nanmax(data)}")
+    # print(f"Max precip: {np.nanmax(data)}")
     t_local, y_idx, x_idx = np.unravel_index(flat_index, data.shape)
 
     return {
@@ -129,19 +129,6 @@ def get_rainfall_cube(yr, ENS_NUM, RAINFALLDIR):
         monthly_cubes.append(cube)
 
     return monthly_cubes.concatenate_cube()
-
-    monthly_cubes = CubeList()
-    for f in files:
-        cube = iris.load(f)[1]
-        cube.attributes = {}
-        monthly_cubes.append(cube)
-    
-    year_cube = monthly_cubes.concatenate_cube()
-    
-    # Filter to catchment
-    # year_cube = extract_catchment_cube(year_cube, _CATCHMENT_POLY, True,boundary_gdf)
-    
-    return year_cube
 
 
 def subset_cube_to_bbox(cube, catchment_poly, buffer=0):
@@ -434,7 +421,7 @@ def get_rainfall_event_details(rainfall_events, event_num):
         'yr':        int(this_event['start_year'][0]),
         'start_idx': int(this_event['start_indices'][0]),
         'stop_idx':  int(this_event['stop_indices'][0]),
-        'max_precip_from_csv':  int(this_event['peaks'][0]),
+        'max_precip_from_csv':  float(this_event['peaks'][0]),
         'year':  int(this_event['start_year'][0]),
     }    
 
