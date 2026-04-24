@@ -8,11 +8,14 @@ import gc
 import os
 import shapely
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import subprocess
+import getpass
+import signal
+import sys
+import logging
 
 from functions import *
-
-
-import logging
+from functions_stage2 import get_rainfall_cube_subsection
 
 def setup_worker_logger(catchment_num):
     """Each worker logs to its own file so output never interleaves."""
@@ -105,11 +108,69 @@ for catchment_num, missing_ens in sorted_missing:
 # Also gives you a clean list to feed directly into your processing loop
 catchments_to_run_sorted = [catchment_num for catchment_num, _ in sorted_missing]
 
-def process_catchment(catchment_num):
-    print(f"Starting Catchment: {catchment_num}")
+# ── Logging setup ─────────────────────────────────────────────────────────────
+def setup_worker_logger(catchment_num):
+    """Each worker logs to its own file so output never interleaves."""
+    log_path = os.path.join(OUT_DIR, f"logs/catchment_{catchment_num}.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+
+    logger = logging.getLogger(f"catchment_{catchment_num}")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+
+    fh = logging.FileHandler(log_path, mode='w')
+    fh.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%H:%M:%S'))
+    logger.addHandler(fh)
+
+    return logger
+
+
+# ── Safety checks ─────────────────────────────────────────────────────────────
+def check_no_existing_workers():
+    """
+    Warn if leftover Python processes from a previous run are still alive.
+    These compete for CPU/memory and can make everything run much slower.
+    """
+    user   = getpass.getuser()
+    result = subprocess.run(['pgrep', '-u', user, '-f', 'python'],
+                            capture_output=True, text=True)
+    pids     = [p for p in result.stdout.strip().split('\n') if p]
+    n_other  = len(pids) - 1  # subtract current process
+
+    if n_other > 0:
+        print(f"\nWARNING: {n_other} existing Python processes found.")
+        print("These may be leftover workers from a previous run and will slow things down.")
+        print(f"To clean up run: pkill -u {user} python")
+        response = input("\nContinue anyway? (y/n): ")
+        if response.lower() != 'y':
+            print("Exiting. Clean up old processes and re-run.")
+            sys.exit(0)
+    else:
+        print("✓ No leftover processes found — clean to start.")
+
+
+# ── Main processing function ──────────────────────────────────────────────────
+def process_catchment(catchment_num, verbose=False):
+    """
+    verbose=True  → prints directly to console/notebook output
+    verbose=False → writes to log file only (for use with ProcessPoolExecutor)
+    """
+
+    # ── Set up output routing ─────────────────────────────────────────────────
+    # When running in parallel, verbose=False routes all output to a per-catchment
+    # log file so workers don't interleave. When debugging in a notebook,
+    # verbose=True prints directly so you see output immediately.
     log = setup_worker_logger(catchment_num)
-    catchment_name = CATCHMENT_LOOKUP_DICT[str(catchment_num)]
-    log.info(f"Starting — {catchment_name}")
+
+    def emit(msg):
+        """Single call routes to print or log depending on verbose flag."""
+        if verbose:
+            print(msg)
+        else:
+            log.info(msg)
+
+    catchment_name  = CATCHMENT_LOOKUP_DICT[str(catchment_num)]
+    emit(f"Starting — {catchment_name}")
     boundary_gdf    = CATCHMENTS[CATCHMENTS['HA_NUM'] == str(catchment_num)]
     _CATCHMENT_POLY = boundary_gdf.geometry.iloc[0]
     results         = []
@@ -117,36 +178,38 @@ def process_catchment(catchment_num):
     for ens_num in ENSEMBLE_MEMBERS:
         out_fp = f"{OUT_DIR}/Catchment_{catchment_num}/{catchment_name}_EM{ens_num}.pkl"
         if os.path.isfile(out_fp):
-            log.info(f"EM{ens_num}: already exists, skipping")
+            emit(f"EM{ens_num}: already exists, skipping")
             continue
 
         results_this_ens = []
         rainfall_events  = pd.read_csv(RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv")
         rainfall_events['event_num'] = range(1, len(rainfall_events) + 1)
         rainfall_cube_dir = f"/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/{ens_num}/"
-        log.info(f"EM{ens_num}: {len(rainfall_events)} events to process")
+        emit(f"EM{ens_num}: {len(rainfall_events)} events to process")
 
         event_details_cache = {
             ev: get_rainfall_event_details(rainfall_events, ev)
             for ev in rainfall_events['event_num']}
 
         t0 = time.time()
-        full_rain_cube = get_rainfall_cube(2015, ens_num, rainfall_cube_dir)
+        full_rain_cube = get_rainfall_cube_subsection(2015, ens_num, rainfall_cube_dir,1,2)
         FULL_MASK_2D   = mask_cube_with_catchment_full_grid(full_rain_cube[0], _CATCHMENT_POLY, method='full_cell')
-        log.info(f"EM{ens_num}: mask created in {time.time()-t0:.1f}s")
+        emit(f"EM{ens_num}: mask created in {time.time()-t0:.1f}s")
+        del full_rain_cube
 
         for year, events_in_year in rainfall_events.groupby('start_year'):
             t0 = time.time()
-            year_cube, x_offset, y_offset = subset_cube_to_bbox(
-                get_rainfall_cube(year, ens_num, rainfall_cube_dir), _CATCHMENT_POLY, buffer=0)
-            
-            nx_sub   = year_cube.shape[2]
-            ny_sub   = year_cube.shape[1]
+            year_cube = get_rainfall_cube(year, ens_num, rainfall_cube_dir)
+            year_cube, x_offset, y_offset = subset_cube_to_bbox(year_cube, _CATCHMENT_POLY, buffer=0)
+            #emit(f"Get cube: {time.time()-t0:.1f}s")
+
+            nx_sub      = year_cube.shape[2]
+            ny_sub      = year_cube.shape[1]
             mask_2d_sub = FULL_MASK_2D[y_offset:y_offset+ny_sub, x_offset:x_offset+nx_sub]
             time_coord  = year_cube.coord('time')
 
             for row in events_in_year.itertuples():
-                event_num    = int(row.event_num)
+                event_num     = int(row.event_num)
                 event_details = event_details_cache[event_num]
 
                 this_event_results = find_max_precip_location(
@@ -167,38 +230,67 @@ def process_catchment(catchment_num):
                 results.append(this_event_results)
                 results_this_ens.append(this_event_results)
 
-            log.info(f"EM{ens_num} | year {year}: {len(events_in_year)} events in {time.time()-t0:.1f}s")
+            emit(f"EM{ens_num} | year {year}: {len(events_in_year)} events in {time.time()-t0:.1f}s")
             del year_cube
             gc.collect()
 
         pd.DataFrame(results_this_ens).to_pickle(
             os.path.join(OUT_DIR, f"Catchment_{catchment_num}", f"{catchment_name}_EM{ens_num}.pkl"))
-        log.info(f"EM{ens_num}: saved")
+        emit(f"EM{ens_num}: saved")
 
-    # ── Combine and clean up ──────────────────────────────────────────────────
-    results_df = pd.DataFrame(results)
+    results_df  = pd.DataFrame(results)
     combined_fp = os.path.join(OUT_DIR, f"Catchment_{catchment_num}", f"{catchment_name}.pkl")
     results_df.to_pickle(combined_fp)
-    log.info(f"Combined file saved: {combined_fp}")
+    emit(f"Combined file saved: {combined_fp}")
 
     for ens_num in ENSEMBLE_MEMBERS:
         fp = os.path.join(OUT_DIR, f"Catchment_{catchment_num}", f"{catchment_name}_EM{ens_num}.pkl")
         if os.path.exists(fp):
             os.remove(fp)
-    log.info("Done — individual EM files cleaned up")
+    emit("Done — individual EM files cleaned up")
 
     return catchment_num
 
-if __name__ == "__main__":
-    N_WORKERS = 4
 
-    with ProcessPoolExecutor(max_workers=N_WORKERS) as executor:
-        futures = {executor.submit(process_catchment, cn): cn for cn in catchments_to_run_sorted}
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+
+    # ── Check for leftover processes before starting ──────────────────────────
+    check_no_existing_workers()
+
+    # ── Signal handler so Ctrl+C / SIGTERM kills workers cleanly ─────────────
+    # Without this, interrupting the script leaves worker processes alive,
+    # which then compete with the next run and cause significant slowdown.
+    executor = None
+
+    def shutdown_handler(sig, frame):
+        print(f"\nSignal {sig} received — shutting down workers cleanly...")
+        if executor is not None:
+            executor.shutdown(wait=False, cancel_futures=True)
+        print("Workers shut down. Exiting.")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT,  shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
+
+    N_WORKERS = 2  # tune to your node's CPU and memory
+
+    print(f"\nStarting parallel run: {len(catchments_to_run_sorted)} catchments, "
+          f"{N_WORKERS} workers")
+    print(f"Logs: {OUT_DIR}logs/catchment_<num>.log\n")
+
+    with ProcessPoolExecutor(max_workers=N_WORKERS) as ex:
+        executor = ex  # expose to signal handler
+        futures  = {ex.submit(process_catchment, cn, verbose=True): cn
+                    for cn in catchments_to_run_sorted}
+
         for future in as_completed(futures):
             cn = futures[future]
             try:
                 future.result()
-                # Only high-level status goes to console — details are in the log file
-                print(f"✓ Catchment {cn} complete — see logs/catchment_{cn}.log")
+                print(f"✓ Catchment {cn} complete")
             except Exception as e:
-                print(f"✗ Catchment {cn} FAILED: {e} — see logs/catchment_{cn}.log")
+                print(f"✗ Catchment {cn} failed: {e} — check logs/catchment_{cn}.log")
+
+    print("\nAll catchments complete.")
