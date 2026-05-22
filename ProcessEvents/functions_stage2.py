@@ -10,16 +10,171 @@ import iris
 import logging
 from shapely.geometry import box, MultiPolygon
 from scipy.ndimage import label, generate_binary_structure
+import cftime
 
-from functions import get_rainfall_cube, mask_to_polygons, compute_temporal_metrics
+from functions import *
 from config import *
+    
+# def plot_surrounding_ts (rainfall_cube_dir, catchment_num, ens_num, bc=True):
+#     catchment_name  = CATCHMENT_LOOKUP_DICT[str(catchment_num)]
+#     boundary_gdf    = CATCHMENTS[CATCHMENTS['HA_NUM'] == str(catchment_num)]
+#     CATCHMENT_POLY = boundary_gdf.geometry.iloc[0]
+#     # catchment_gdf = gpd.GeoDataFrame(geometry=[CATCHMENT_POLY], crs=waterbodies_df.crs)
+#     # waterbodies_in_catchment = gpd.sjoin(waterbodies_df, catchment_gdf, how='inner', predicate='within')
+#     full_rain_cube = get_rainfall_cube_subsection(2015, '01', f"/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/01/", 1, 2)
+#     FULL_MASK_2D   = mask_cube_with_catchment_full_grid(full_rain_cube[0], CATCHMENT_POLY, method='center_point')
+#     year_cube, mask_x_offset, mask_y_offset = subset_cube_to_bbox(full_rain_cube, CATCHMENT_POLY, buffer=0)
+#     ny_sub = year_cube.shape[1]
+#     nx_sub = year_cube.shape[2]
+#     mask_2d_sub = FULL_MASK_2D[mask_y_offset:mask_y_offset + ny_sub, mask_x_offset:mask_x_offset + nx_sub]
+
+
+#     rainfall_events  = pd.read_csv(RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv")
+#     rainfall_events['event_num']  = range(1, len(rainfall_events) + 1)
+#     rainfall_events['hydro_year'] = rainfall_events['start_year'].where(rainfall_events['start_month'] != 12,
+#             rainfall_events['start_year'] + 1)
+
+#     event_details_cache = {
+#         ev: get_rainfall_event_details(rainfall_events, ev)
+#         for ev in rainfall_events['event_num']}
+
+#     # ── Get single peak event only ────────────────────────────────────────────
+#     peak_event_row = rainfall_events.nlargest(1, 'peaks').iloc[0]
+#     year           = int(peak_event_row['hydro_year'])
+#     event_num      = int(peak_event_row['event_num'])
+#     event_details  = event_details_cache[event_num]
+
+#     # ── Load cube for the peak event, with extra timesteps either side ────────
+#     BUFFER = 3
+#     if bc ==True:
+#         year_cube = get_rainfall_cube_subsection(
+#             year, ens_num, rainfall_cube_dir,
+#             event_details['start_idx'] - 1 - BUFFER,
+#             event_details['stop_idx']  + BUFFER)
+#     else:
+#         year_cube = get_rainfall_cube_subsection_notbc(
+#             year, ens_num, rainfall_cube_dir,
+#             event_details['start_idx'] - 1 - BUFFER,
+#             event_details['stop_idx']  + BUFFER)   
+    
+#     year_cube.data = np.where(FULL_MASK_2D, year_cube.data, np.nan)
+#     year_cube, x_offset, y_offset = subset_cube_to_bbox(year_cube, CATCHMENT_POLY, buffer=0)
+
+#     # ── Find the peak timestep index within this cube ─────────────────────────
+#     max_time_idx = np.unravel_index(np.nanargmax(year_cube.data), year_cube.data.shape)[0]
+
+#     # ── Build the 7 timestep indices to plot (clamped to cube bounds) ─────────
+#     n_times      = year_cube.shape[0]
+#     offsets      = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4,5,6 ]
+#     plot_indices = [np.clip(max_time_idx + o, 0, n_times - 1) for o in offsets]
+
+#     # ── Validate event ────────────────────────────────────────────────────────
+#     this_event_results = find_max_precip_location_new(
+#         year_cube, event_details['start_idx'], event_details['stop_idx'],
+#         x_offset=x_offset, y_offset=y_offset, mask_2d=mask_2d_sub)
+#     this_event_results['max_precip_from_csv'] = event_details['max_precip_from_csv']
+
+#     time_coord    = year_cube.coord('time')
+#     time_from_cube = time_coord.units.num2date(np.floor(time_coord.points[0]))
+#     time_from_csv  = cftime.Datetime360Day(
+#         event_details['yr'], event_details['month'],
+#         event_details['day'], event_details['hour'])
+#     this_event_results['time_mismatch'] = (time_from_cube != time_from_csv)
+
+
+#     #Get 1D cube, just at the location of the peak
+#     rainfall_at_peak  = get_data_at_peak_cell(year_cube, this_event_results, 'x_idx', 'y_idx')
+    
+#     #Extract various temporal profile results
+#     temp_profile_dict = find_temporal_profile_new(rainfall_at_peak, this_event_results, plot=True)
+
+#     # ── Plot: 7 subplots centred on the peak timestep ─────────────────────────
+#     fig, axs = plt.subplots(ncols=4, nrows=3, figsize=(18, 9),
+#                             subplot_kw={'projection': ccrs.OSGB()})
+#     axs = axs.flatten()
+
+#     for ax_i, (offset, t_idx) in enumerate(zip(offsets, plot_indices)):
+#         label = "peak" if offset == 0 else f"t{offset:+d}"
+
+#         # Max precip value across the catchment at this timestep
+#         timestep_max = np.nanmax(year_cube[t_idx, :, :].data)
+#         iplt.pcolormesh(year_cube[t_idx, :, :], axes=axs[ax_i],
+#                         cmap='YlGn', edgecolor='none', linewidth=0.5)
+#         axs[ax_i].coastlines(resolution='10m', color='red')
+#         axs[ax_i].add_geometries([CATCHMENT_POLY], crs=ccrs.OSGB(),
+#                                   facecolor='none', edgecolor='black', linewidth=1.5)
+#         axs[ax_i].set_title(f"{label} — max: {timestep_max:.1f} mm")
+
+#     # Hide the unused 8th subplot (4×2 grid has 8 slots, we use 7)
+#     # axs[7].set_visible(False)
+
+#     fig.suptitle(f"Catchment {catchment_num} — EM{ens_num} — Peak event (year {year}, event {event_num})",
+#                  fontsize=12)
+#     fig.tight_layout()
+    
+
+
+def get_exceedance_summary(year_cube, peak_t_idx, threshold=150, window=10):
+    """
+    For the ±window timesteps around peak_t_idx, count how many
+    (timestep, grid_cell) combinations exceed the threshold.
+    
+    Returns a dict with:
+      - exceedance_matrix : 2D array (timesteps x cells) of booleans
+      - cells_per_timestep: how many cells exceed threshold at each timestep
+      - timesteps_per_cell: how many timesteps each cell exceeds threshold
+      - n_timesteps_any_exceedance: how many timesteps have at least 1 cell over threshold
+      - n_cells_any_exceedance   : how many cells exceed threshold in at least 1 timestep
+      - total_exceedances        : total (t, cell) pairs exceeding threshold
+    """
+    n_times = year_cube.shape[0]
+
+    # Build window indices, clamped to cube bounds
+    t_start = max(0, peak_t_idx - window)
+    t_end   = min(n_times - 1, peak_t_idx + window)
+    window_indices = list(range(t_start, t_end + 1))
+
+    # Extract windowed data: shape (n_window_timesteps, ny, nx)
+    window_data = year_cube[window_indices, :, :].data  # shape: (T, Y, X)
+
+    # Flatten spatial dims → shape (T, n_cells)
+    T, ny, nx  = window_data.shape
+    flat_data  = window_data.reshape(T, -1)             # (T, n_cells)
+
+    # Boolean exceedance matrix
+    exceedance_matrix = flat_data > threshold           # (T, n_cells)
+
+    # Per-timestep: how many cells exceed threshold
+    cells_per_timestep = exceedance_matrix.sum(axis=1)  # length T
+
+    # Per-cell: how many timesteps exceed threshold
+    timesteps_per_cell = exceedance_matrix.sum(axis=0)  # length n_cells
+    # Reshape back to spatial grid for mapping
+    timesteps_per_cell_2d = timesteps_per_cell.reshape(ny, nx)
+
+    summary = {
+        "threshold":                  threshold,
+        "window":                     window,
+        "t_window_start":             t_start,
+        "t_window_end":               t_end,
+        "peak_t_idx":                 peak_t_idx,
+        "cells_per_timestep":         cells_per_timestep,       # array, length T
+        "timesteps_per_cell_2d":      timesteps_per_cell_2d,    # 2D grid
+        "n_timesteps_any_exceedance": int((cells_per_timestep > 0).sum()),
+        "n_cells_any_exceedance":     int((timesteps_per_cell > 0).sum()),
+        "total_exceedances":          int(exceedance_matrix.sum()),
+        "max_cells_in_one_timestep":  int(cells_per_timestep.max()),
+        "max_timesteps_one_cell":     int(timesteps_per_cell.max()),
+    }
+    return summary, window_indices    
+
 
 def find_max_precip_location_new(cube, start_idx, stop_idx, x_offset=0, y_offset=0, mask_2d=None):
     
     # Slice the event window first — much smaller than full year
     #cube_sliced = cube[start_idx:stop_idx,:,:]
     data = np.array(cube.data)
-    data[data >= 1e19] = np.nan
+    #data[data >= 1e19] = np.nan
 
     # Then apply mask only to this small slice
     if mask_2d is not None:
@@ -38,44 +193,41 @@ def find_max_precip_location_new(cube, start_idx, stop_idx, x_offset=0, y_offset
         'x_idx_global': int(x_idx + x_offset),
         'y_idx_global': int(y_idx + y_offset),
         'x_coord':      cube.coord('projection_x_coordinate').points[x_idx],
-        'y_coord':      cube.coord('projection_y_coordinate').points[y_idx],
-    }
+        'y_coord':      cube.coord('projection_y_coordinate').points[y_idx],}
 
 
 def find_temporal_profile_new(cube, details, plot):
-    # Extract event time series
     values = cube.data
-    times = cube.coord('yyyymmddhh').points.astype(int)
-
+    
+    # Stay in cftime — don't use yyyymmddhh at all
+    time_coord = cube.coord('time')
+    times_cftime = [time_coord.units.num2date(t) for t in time_coord.points]
+    
     metrics = compute_temporal_metrics(values)
+    temp_profile_dict = {**metrics, 'times': times_cftime, 'values': values}
     
-    # Convert to datetime
-    dt = pd.to_datetime(times.astype(str), format="%Y%m%d%H")
-    
-    #temp_profile_dict = {'total_acc': values.sum(), 'times':dt, 'values':values}
-    temp_profile_dict = {**metrics,'times': dt,'values': values}
-    
-    # Plot
-    if plot == True:
-        plt.figure(figsize=(8,4))
-        plt.plot(dt, values, color='black')
-
-        # Mark peak timestep
-        rainfall_peak_time = cube.coord('yyyymmddhh').points[details['t_local']]
-        peak_dt = pd.to_datetime(str(int(rainfall_peak_time)), format="%Y%m%d%H")
-        plt.axvline(peak_dt, linestyle='--', color = 'red', label='Peak timestep')
-
-        # Format ticks
-        plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%H'))
-
+    if plot:
+        # Use integer indices for x-axis to avoid Gregorian calendar issues
+        x = np.arange(len(values))
+        tick_labels = [f"{t.month:02d}-{t.day:02d} {t.hour:02d}:00" for t in times_cftime]
+        
+        plt.figure(figsize=(8, 4))
+        plt.plot(x, values, color='black')
+        
+        # Mark peak
+        plt.axvline(details['t_local'], linestyle='--', color='red', label='Peak timestep')
+        
+        # Format ticks — show every N ticks to avoid crowding
+        N = max(1, len(x) // 8)
+        plt.xticks(x[::N], tick_labels[::N], rotation=45, ha='right')
+        
         plt.xlabel("Date")
         plt.ylabel("Precipitation intensity (mm/hr)")
         plt.title("Rainfall at peak grid cell during event")
         plt.legend()
-
         plt.tight_layout()
         plt.show()
-
+    
     return temp_profile_dict
 
 def setup_worker_logger(catchment_num):
@@ -96,62 +248,122 @@ def setup_worker_logger(catchment_num):
     return logger
 
 
+
 def get_rainfall_cube_subsection(yr, ENS_NUM, RAINFALLDIR, start_idx=None, stop_idx=None):
     """
-    Each monthly file contains 30*24 = 720 timesteps (30-day months, hourly data).
-    If we know start_idx and stop_idx we can work out which files we actually
-    need and skip loading the rest entirely.
+    Load a subsection of hourly rainfall data for a given hydrological year and ensemble member.
+    
+    The hydrological year is defined as December(yr-1) through November(yr), meaning:
+        - Index 0    = 1 Dec (yr-1) 00:00
+        - Index 719  = 30 Dec (yr-1) 23:00  [end of December]
+        - Index 720  = 1 Jan (yr)   00:00
+        - Index 8639 = 30 Nov (yr)  23:00   [end of November, end of hydro year]
+    
+    Each monthly file contains exactly 720 timesteps (30-day months x 24 hours).
+    This is a 360-day calendar dataset so every month has exactly 30 days.
+    
+    If start_idx and stop_idx are provided, only the files needed to cover that
+    window are loaded — typically 1 or 2 files instead of all 12. This is important
+    for performance when looping over many events.
+    
+    An additional December(yr) file is included at the end of the file list to handle
+    edge cases where an event starting in late November bleeds past the end of the
+    hydrological year (index > 8639).
+    
+    Parameters
+    ----------
+    yr         : int  — the hydrological year (e.g. 2067 means Dec 2066 → Nov 2067)
+    ENS_NUM    : str  — ensemble member identifier (e.g. '01')
+    RAINFALLDIR: str  — path to directory containing monthly .nc files
+    start_idx  : int  — first timestep to load (inclusive), in hydro-year index space
+    stop_idx   : int  — last timestep to load (exclusive), in hydro-year index space
+    
+    Returns
+    -------
+    iris.cube.Cube with dimensions (time, projection_y_coordinate, projection_x_coordinate)
     """
-    HOURS_PER_MONTH = 30 * 24  # 720 — fixed because this is a 360-day calendar dataset
+    HOURS_PER_MONTH = 30 * 24  # 720 — constant for this 360-day calendar dataset
 
-    # Build the full ordered file list with their global time index ranges
-    # so we can identify which files overlap with [start_idx, stop_idx]
-    all_files = []
-    cumulative = 0
+    # ── Build the full ordered list of monthly files ───────────────────────────
+    # Each entry records the file path and the global index range it covers,
+    # so we can later identify which files overlap with [start_idx, stop_idx].
+    # 'global_start' is inclusive, 'global_end' is exclusive (half-open interval).
+    all_files  = []
+    cumulative = 0  # running total of timesteps, used to assign global index ranges
 
-    # December of previous year: indices 0–719
+    # File 0: December of the previous calendar year
+    # This is always the first month of the hydrological year (indices 0–719)
     all_files.append({
-        'path': f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc",
+        'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc",
         'global_start': cumulative,
         'global_end':   cumulative + HOURS_PER_MONTH
     })
     cumulative += HOURS_PER_MONTH
 
-    # January–November of target year
+    # Files 1–11: January through November of the target year (indices 720–8639)
+    # Note: we stop at month 11 (November) because December belongs to the
+    # *next* hydrological year
     for m in range(1, 12):
         all_files.append({
-            'path': f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}{m:02d}01-{yr}{m:02d}30.nc",
+            'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}{m:02d}01-{yr}{m:02d}30.nc",
             'global_start': cumulative,
             'global_end':   cumulative + HOURS_PER_MONTH
         })
         cumulative += HOURS_PER_MONTH
 
-    # ── Filter to only files that overlap with [start_idx, stop_idx] ──────────
-    # A file overlaps if its range intersects the requested window.
-    # This typically reduces 12 file loads down to 1 or 2.
+    # File 12: December of the target year (indices 8640–9359)
+    # This file is ONLY needed for edge-case events that start in late November
+    # and whose stop_idx bleeds past the end of the hydrological year (> 8639).
+    # Including it here costs nothing if it isn't needed — the filter below will
+    # simply not select it.
+    all_files.append({
+        'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}1201-{yr}1230.nc",
+        'global_start': cumulative,
+        'global_end':   cumulative + HOURS_PER_MONTH
+    })
+
+    # ── Select only the files that overlap with [start_idx, stop_idx] ─────────
+    # A file overlaps the requested window if:
+    #   - it ends after the window starts (global_end > start_idx), AND
+    #   - it starts before the window ends (global_start < stop_idx)
+    # This is standard half-open interval intersection logic.
+    # For a typical event this reduces 13 file loads down to 1 or 2.
     if start_idx is not None and stop_idx is not None:
         needed = [f for f in all_files
                   if f['global_end'] > start_idx and f['global_start'] < stop_idx]
     else:
+        # No indices provided — load the full hydrological year
         needed = all_files
 
-    # ── Load only the needed files ────────────────────────────────────────────
+    # ── Warn if the overflow December file is being used ──────────────────────
+    # This is an unusual case and worth flagging so we know it's happening
+    #if needed and needed[-1]['path'].endswith(f"{yr}1201-{yr}1230.nc"):
+    #    print(f"  WARNING: event bleeds into Dec {yr} (stop_idx={stop_idx} > 8639) — loading overflow file")
+
+    # ── Load only the needed files and concatenate into a single cube ─────────
     monthly_cubes = iris.cube.CubeList()
     for f in needed:
-        cube = iris.load(f['path'])[1]
-        cube.attributes = {}
+        cube = iris.load(f['path'])[1]  # [1] selects the rainfall variable from the file
+        cube.attributes = {}            # clear attributes so concatenation doesn't fail
+                                        # on mismatched metadata between monthly files
         monthly_cubes.append(cube)
 
+    for cube in monthly_cubes:
+        cube.coord('time').bounds = None
+        
     year_cube = monthly_cubes.concatenate_cube()
 
-    # ── Slice to the exact requested window ───────────────────────────────────
-    # Adjust indices to be relative to the first loaded file's start
+    # ── Slice the concatenated cube to the exact requested window ─────────────
+    # The indices stored in start_idx/stop_idx are in the global hydro-year
+    # index space (0 = start of Dec(yr-1)). But after loading only a subset
+    # of files, the cube's own time axis starts at the beginning of the first
+    # *loaded* file, not at 0. So we subtract that file's global_start ('offset')
+    # to convert global indices into local indices within the loaded cube.
     if start_idx is not None and stop_idx is not None:
         offset = needed[0]['global_start']
         return year_cube[start_idx - offset:stop_idx - offset, :, :]
 
     return year_cube
-
 
 def get_data_at_peak_cell(cube, one_event_results, x_idx_variable, y_idx_variable):
 
@@ -435,7 +647,7 @@ def analyse_peak_event(
     rain = peak_slice.data.astype(float)
 
     # Clean invalid values
-    rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
+    #rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
 
     # ── Pre-extract flood arrays (already numpy) ──────────────────────────
     flood_arrays = {

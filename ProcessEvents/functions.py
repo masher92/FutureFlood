@@ -21,6 +21,7 @@ from scipy.interpolate import interp1d
 from shapely.geometry import mapping
 import cartopy.feature as cfeature
 from shapely.ops import unary_union
+import iris.quickplot as qplt
 
 warnings.filterwarnings("ignore", category=IrisCfMissingVarWarning)
 warnings.filterwarnings("ignore", message=".*ensemble_member_id.*")
@@ -107,8 +108,8 @@ def filter_closer_to_catchment(cube, catchment_poly, plot=False, boundary_gdf = 
     
     if plot==True:
         fig, ax = plt.subplots(figsize=(6,6), subplot_kw={'projection': ccrs.OSGB()})
-        qplt.pcolormesh(sub_cube[2], axes=ax, cmap = 'Blues', edgecolor='black', linewidth=0.5)
-        boundary_gdf.boundary.plot(ax=ax, color='black');
+        qplt.pcolormesh(sub_cube[2], axes=ax, cmap = 'terrain', edgecolor='black', linewidth=0.5)
+        ax.add_geometries([catchment_poly], crs=ccrs.OSGB(), facecolor='none', edgecolor='black', linewidth=1.5)
         
     return sub_cube
 
@@ -129,6 +130,8 @@ def get_rainfall_cube(yr, ENS_NUM, RAINFALLDIR):
         monthly_cubes.append(cube)
 
     return monthly_cubes.concatenate_cube()
+
+
 
 
 def subset_cube_to_bbox(cube, catchment_poly, buffer=0):
@@ -298,70 +301,6 @@ def mask_cube_with_catchment_full_grid(cube, catchment_poly, method="full_cell")
 
     return mask  # (ny, nx) boolean, never applied to any cube
 
-# def mask_cube_with_catchment(sub_cube, catchment_poly, method="center_point"):
-#     """
-#     Build a 2D boolean mask for the catchment polygon.
-#     Returns (ny, nx) boolean array.
-#     """
-
-#     x = sub_cube.coord('projection_x_coordinate').points
-#     y = sub_cube.coord('projection_y_coordinate').points
-#     xx, yy = np.meshgrid(x, y)
-
-#     if method == "center_point":
-#         # 🚀 Fastest
-#         mask = contains_xy(catchment_poly, xx.ravel(), yy.ravel())
-#         mask = mask.reshape(xx.shape)
-
-#     elif method == "raster":
-#         # 🚀 Fast + robust (recommended alternative)
-#         from rasterio.features import geometry_mask
-#         from rasterio.transform import from_origin
-
-#         dx = np.diff(x).mean()
-#         dy = np.diff(y).mean()
-
-#         transform = from_origin(
-#             x.min() - dx / 2,
-#             y.max() + dy / 2,
-#             dx,
-#             dy
-#         )
-
-#         mask = geometry_mask(
-#             [catchment_poly],
-#             transform=transform,
-#             invert=True,
-#             out_shape=(len(y), len(x))
-#         )
-
-#         # Fix orientation if needed
-#         if y[1] > y[0]:
-#             mask = np.flipud(mask)
-
-#     elif method == "full_cell":
-#         # 🐢 Slow but most geometrically correct
-#         dx = x[1] - x[0]
-#         dy = y[1] - y[0]
-
-#         cells = [
-#             box(xi - dx/2, yi - dy/2, xi + dx/2, yi + dy/2)
-#             for yi, xi in zip(yy.ravel(), xx.ravel())
-#         ]
-
-#         tree = STRtree(cells)
-#         hits = tree.query(catchment_poly, predicate='intersects')
-
-#         mask = np.zeros(len(cells), dtype=bool)
-#         mask[hits] = True
-#         mask = mask.reshape(xx.shape)
-        
-#     masked_data = np.where(mask, sub_cube.data, np.nan)
-#     return sub_cube.copy(data=masked_data)
-
-# #     else:
-# #         print("method must be 'center_point', 'raster', or 'full_cell'")
-# #         raise ValueError("method must be 'center_point', 'raster', or 'full_cell'")
 
 def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
     """
@@ -412,18 +351,19 @@ def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
     ax.legend(loc='lower right')
     plt.tight_layout()
 
-    
 def get_rainfall_event_details(rainfall_events, event_num):
     """Extract metadata for a single event."""
     this_event = rainfall_events[rainfall_events['event_num'] == event_num].reset_index(drop=True)
     return {
         'event_num': event_num,
         'yr':        int(this_event['start_year'][0]),
+        'month':        int(this_event['start_month'][0]),
+        'day':        int(this_event['start_day'][0]),
+        'hour': int(this_event['start_hour'][0]),
+        'hydro_yr':        int(this_event['hydro_year'][0]),
         'start_idx': int(this_event['start_indices'][0]),
         'stop_idx':  int(this_event['stop_indices'][0]),
-        'max_precip_from_csv':  float(this_event['peaks'][0]),
-        'year':  int(this_event['start_year'][0]),
-    }    
+        'max_precip_from_csv':  float(this_event['peaks'][0]),}    
 
 def extract_catchment_cube(cube, catchment_poly, method, buffer=0):
     start_time1 = time.time()
