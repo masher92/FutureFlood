@@ -98,7 +98,7 @@ for catchment_num in catchments_with_flood_output:
 print(catchments_to_run_sorted)
 
 
-for catchment_num in catchments_to_run_sorted[2:]:
+for catchment_num in catchments_to_run_sorted[6:]:
     
     print(f"Running for {catchment_num}")
     if not os.path.exists(os.path.join(OUT_DIR, f"Catchment_{catchment_num}")):
@@ -160,10 +160,15 @@ for catchment_num in catchments_to_run_sorted[2:]:
     # ───────────────────────────────────────────────── 
 
     for ens_num in ENSEMBLE_MEMBERS:
-        
-        fp = os.path.join(OUT_DIR, f"Catchment_{catchment_num}", f"{catchment_name}_EM{ens_num}.pkl")
+
+        fp = os.path.join(OUT_DIR,f"Catchment_{catchment_num}",f"{catchment_name}_EM{ens_num}.pkl")
+
         if os.path.exists(fp):
-                print(f"Already ran for {catchment_name}, skipping")
+            print(f"Loading {catchment_name}, EM{ens_num}")
+
+            df = pd.read_pickle(fp)
+            results.append(df)                
+                
         else:
             catchment_name = CATCHMENT_LOOKUP_DICT[catchment_num]
         
@@ -176,7 +181,8 @@ for catchment_num in catchments_to_run_sorted[2:]:
             rainfall_events['event_num']  = range(1, len(rainfall_events) + 1)
             rainfall_events['hydro_year'] = rainfall_events['start_year'].where(rainfall_events['start_month'] != 12,
                     rainfall_events['start_year'] + 1)
-
+            print(f"rainfall events is length: {len(rainfall_events)}")
+            
             # Specify filepath to the directory with netCDF for this ensemble member
             rainfall_cube_dir = f"/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/{ens_num}/"
             emit(f"EM{ens_num}: {len(rainfall_events)} events to process")
@@ -189,7 +195,7 @@ for catchment_num in catchments_to_run_sorted[2:]:
             # ───────────────────────────────────────────────── 
             # Loop through each event
             # ───────────────────────────────────────────────── 
-            for year, events_in_year in rainfall_events.groupby('hydro_year'):
+            for year, events_in_year in rainfall_events[:2].groupby('hydro_year'):
                 begin_time = time.time()
                 # ─────────────────────────────────────────────────
                 # ── Load SM cube and realise to numpy once per (ens, year) 
@@ -312,6 +318,7 @@ for catchment_num in catchments_to_run_sorted[2:]:
                                 f"{ens_flood_dir}/{depth}cm/flooded_area_5km_total_Ens{ens_num}_{catchment_num}_{depth}cm.nc"))
                             area_cube.data = np.where(FULL_MASK_2D, area_cube.data, np.nan)
                             area_cube = filter_closer_to_catchment(area_cube, CATCHMENT_POLY, plot=False)
+                            print(f"Area cube shape: {area_cube.shape}")
                             vol_cube  = prepare_flood_cube(load_3d_cube(
                                 f"{ens_flood_dir}/{depth}cm/flooded_volume_5km_total_Ens{ens_num}_{catchment_num}_{depth}cm.nc"))
                             vol_cube.data = np.where(FULL_MASK_2D, vol_cube.data, np.nan)
@@ -389,8 +396,9 @@ for catchment_num in catchments_to_run_sorted[2:]:
                     this_event_results.update(peak_results)    
 
                     # Add to both EM specific, and overall results
-                    results.append(this_event_results)
                     results_this_ens.append(this_event_results)
+                    this_event_results = pd.DataFrame(this_event_results)
+                    results.append(this_event_results)
 
                 emit(f"EM{ens_num} | year {year}: {len(events_in_year)} events in {time.time()-begin_time:.1f}s")
                 del year_cube
@@ -402,7 +410,7 @@ for catchment_num in catchments_to_run_sorted[2:]:
             emit(f"EM{ens_num}: saved in {round((time.time() - start_time_ens)/60,2)} minutes")
 
     # Create a total results out of all the results
-    results_df  = pd.DataFrame(results)
+    results_df = pd.concat(results, ignore_index=True)
 
     combined_fp = os.path.join(OUT_DIR, f"Catchment_{catchment_num}", f"{catchment_name}.pkl")
     results_df.to_pickle(combined_fp)
