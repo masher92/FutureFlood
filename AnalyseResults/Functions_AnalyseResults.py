@@ -12,8 +12,7 @@ def partial_r2_for_catchment(df_catch, flood_metric='10cm_area'):
     # Drop rows with nulls in relevant columns
     sm_cols = ['mean_sm_2_before_event']
     
-    base_features = ['max_precip', 'gini', 'd50', 'peak_position_ratio',
-                     'dry_ratio', 'time_based_std', 'total_acc']
+    base_features = ['max_precip'] #' total_acc']
     
     all_cols = base_features + sm_cols + [flood_metric]
     df = df_catch[all_cols].dropna()
@@ -44,7 +43,7 @@ def plot_with_best_fit_line(results_df, ax, col1, col2, label1, label2, title):
     ax.scatter(x, y)
 
     # 🔹 Fit line
-    # m, b = np.polyfit(x, y, 1)
+    m, b = np.polyfit(x, y, 1)
 
     # Predicted values
     y_pred = m * x + b

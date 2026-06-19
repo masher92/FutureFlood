@@ -354,6 +354,7 @@ def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
 def get_rainfall_event_details(rainfall_events, event_num):
     """Extract metadata for a single event."""
     this_event = rainfall_events[rainfall_events['event_num'] == event_num].reset_index(drop=True)
+        
     return {
         'event_num': event_num,
         'yr':        int(this_event['start_year'][0]),
@@ -363,7 +364,12 @@ def get_rainfall_event_details(rainfall_events, event_num):
         'hydro_yr':        int(this_event['hydro_year'][0]),
         'start_idx': int(this_event['start_indices'][0]),
         'stop_idx':  int(this_event['stop_indices'][0]),
-        'max_precip_from_csv':  float(this_event['peaks'][0]),}    
+        'max_precip_from_csv':  float(this_event['peaks'][0]),
+        'start_time': pd.Timestamp(
+    year=int(this_event['start_year'][0]),
+    month=int(this_event['start_month'][0]),
+    day=int(this_event['start_day'][0]),
+    hour=int(this_event['start_hour'][0]))}    
 
 def extract_catchment_cube(cube, catchment_poly, method, buffer=0):
     start_time1 = time.time()
