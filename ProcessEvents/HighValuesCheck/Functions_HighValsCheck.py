@@ -235,13 +235,12 @@ def find_problematic_catchment_em_combos_complex (all_catchments, THRESHOLD, CAT
 
             # ── 1. Load event CSV (same as before) ───────────────────────────────
             rainfall_events = pd.read_csv(
-                RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv"
-            )
+                RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv")
+            
             rainfall_events['event_num']  = range(1, len(rainfall_events) + 1)
             rainfall_events['hydro_year'] = rainfall_events['start_year'].where(
                 rainfall_events['start_month'] != 12,
-                rainfall_events['start_year'] + 1
-            )
+                rainfall_events['start_year'] + 1)
 
 #             peak_max      = rainfall_events['peaks'].max()
 #             n_problematic = len(rainfall_events[rainfall_events['peaks'] > THRESHOLD])
@@ -399,10 +398,8 @@ def check_extremes_across_combos(results_df, plot=True):
             boundary_gdf   = CATCHMENTS[CATCHMENTS['HA_NUM'] == str(catchment_num)]
             CATCHMENT_POLY = boundary_gdf.geometry.iloc[0]
 
-            full_rain_cube = get_rainfall_cube_subsection(
-                2015, '01',
-                "/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/01/",
-                1, 2)
+            full_rain_cube = get_rainfall_cube_subsection( 2015, '01',
+                "/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/01/", 1, 2)
 
             mask_cache[catchment_num] = mask_cube_with_catchment_full_grid(
                 full_rain_cube[0], CATCHMENT_POLY, method='center_point')
@@ -414,8 +411,7 @@ def check_extremes_across_combos(results_df, plot=True):
 
         if events_key not in events_cache:
             df = pd.read_csv(
-                RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv"
-            )
+                RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv")
             df['event_num']  = range(1, len(df) + 1)
             df['hydro_year'] = df['start_year'].where(
                 df['start_month'] != 12, df['start_year'] + 1)
@@ -491,8 +487,7 @@ def check_extremes_across_combos(results_df, plot=True):
                         'day'        : int(d),
                         'mean_ratio' : float(mean_r),
                         'std_ratio'  : float(std_r),
-                        'is_constant': bool(is_constant)
-                    })
+                        'is_constant': bool(is_constant) })
 
                     constant_flags.append(is_constant)
 
@@ -503,8 +498,7 @@ def check_extremes_across_combos(results_df, plot=True):
                     "bc": ts_bc,
                     "nonbc": ts_nonbc,
                     "ratio_direct": ts_bc / ts_nonbc,
-                    "ratio_stored": ratio
-                })
+                    "ratio_stored": ratio})
                 
                 check_df["ratio_match"] = np.isclose(
                     check_df["ratio_direct"],

@@ -174,7 +174,7 @@ def find_max_precip_location_new(cube, start_idx, stop_idx, x_offset=0, y_offset
     # Slice the event window first — much smaller than full year
     #cube_sliced = cube[start_idx:stop_idx,:,:]
     data = np.array(cube.data)
-    #data[data >= 1e19] = np.nan
+    data[data >= 1e19] = np.nan
 
     # Then apply mask only to this small slice
     if mask_2d is not None:
@@ -248,61 +248,23 @@ def setup_worker_logger(catchment_num):
     return logger
 
 
-
+DATASET_MIN_YEAR = 1990
 def get_rainfall_cube_subsection(yr, ENS_NUM, RAINFALLDIR, start_idx=None, stop_idx=None):
-    """
-    Load a subsection of hourly rainfall data for a given hydrological year and ensemble member.
-    
-    The hydrological year is defined as December(yr-1) through November(yr), meaning:
-        - Index 0    = 1 Dec (yr-1) 00:00
-        - Index 719  = 30 Dec (yr-1) 23:00  [end of December]
-        - Index 720  = 1 Jan (yr)   00:00
-        - Index 8639 = 30 Nov (yr)  23:00   [end of November, end of hydro year]
-    
-    Each monthly file contains exactly 720 timesteps (30-day months x 24 hours).
-    This is a 360-day calendar dataset so every month has exactly 30 days.
-    
-    If start_idx and stop_idx are provided, only the files needed to cover that
-    window are loaded — typically 1 or 2 files instead of all 12. This is important
-    for performance when looping over many events.
-    
-    An additional December(yr) file is included at the end of the file list to handle
-    edge cases where an event starting in late November bleeds past the end of the
-    hydrological year (index > 8639).
-    
-    Parameters
-    ----------
-    yr         : int  — the hydrological year (e.g. 2067 means Dec 2066 → Nov 2067)
-    ENS_NUM    : str  — ensemble member identifier (e.g. '01')
-    RAINFALLDIR: str  — path to directory containing monthly .nc files
-    start_idx  : int  — first timestep to load (inclusive), in hydro-year index space
-    stop_idx   : int  — last timestep to load (exclusive), in hydro-year index space
-    
-    Returns
-    -------
-    iris.cube.Cube with dimensions (time, projection_y_coordinate, projection_x_coordinate)
-    """
-    HOURS_PER_MONTH = 30 * 24  # 720 — constant for this 360-day calendar dataset
+    HOURS_PER_MONTH = 30 * 24
 
-    # ── Build the full ordered list of monthly files ───────────────────────────
-    # Each entry records the file path and the global index range it covers,
-    # so we can later identify which files overlap with [start_idx, stop_idx].
-    # 'global_start' is inclusive, 'global_end' is exclusive (half-open interval).
     all_files  = []
-    cumulative = 0  # running total of timesteps, used to assign global index ranges
+    cumulative = 0
 
-    # File 0: December of the previous calendar year
-    # This is always the first month of the hydrological year (indices 0–719)
-    all_files.append({
-        'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc",
-        'global_start': cumulative,
-        'global_end':   cumulative + HOURS_PER_MONTH
-    })
-    cumulative += HOURS_PER_MONTH
+    # File 0: December of the previous calendar year — only exists if yr-1 is in range
+    has_prev_december = not (yr == DATASET_MIN_YEAR)
+    if has_prev_december:
+        all_files.append({
+            'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc",
+            'global_start': cumulative,
+            'global_end':   cumulative + HOURS_PER_MONTH
+        })
+        cumulative += HOURS_PER_MONTH
 
-    # Files 1–11: January through November of the target year (indices 720–8639)
-    # Note: we stop at month 11 (November) because December belongs to the
-    # *next* hydrological year
     for m in range(1, 12):
         all_files.append({
             'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}{m:02d}01-{yr}{m:02d}30.nc",
@@ -311,59 +273,157 @@ def get_rainfall_cube_subsection(yr, ENS_NUM, RAINFALLDIR, start_idx=None, stop_
         })
         cumulative += HOURS_PER_MONTH
 
-    # File 12: December of the target year (indices 8640–9359)
-    # This file is ONLY needed for edge-case events that start in late November
-    # and whose stop_idx bleeds past the end of the hydrological year (> 8639).
-    # Including it here costs nothing if it isn't needed — the filter below will
-    # simply not select it.
     all_files.append({
         'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}1201-{yr}1230.nc",
         'global_start': cumulative,
         'global_end':   cumulative + HOURS_PER_MONTH
     })
 
-    # ── Select only the files that overlap with [start_idx, stop_idx] ─────────
-    # A file overlaps the requested window if:
-    #   - it ends after the window starts (global_end > start_idx), AND
-    #   - it starts before the window ends (global_start < stop_idx)
-    # This is standard half-open interval intersection logic.
-    # For a typical event this reduces 13 file loads down to 1 or 2.
     if start_idx is not None and stop_idx is not None:
+        if not has_prev_december and start_idx < HOURS_PER_MONTH:
+            raise ValueError(
+                f"Event requests start_idx={start_idx} (before 1 Jan {yr}), but no "
+                f"December {yr-1} file exists — dataset begins {DATASET_MIN_YEAR}1201. "
+                f"This event cannot be loaded."
+            )
         needed = [f for f in all_files
                   if f['global_end'] > start_idx and f['global_start'] < stop_idx]
     else:
-        # No indices provided — load the full hydrological year
         needed = all_files
 
-    # ── Warn if the overflow December file is being used ──────────────────────
-    # This is an unusual case and worth flagging so we know it's happening
-    #if needed and needed[-1]['path'].endswith(f"{yr}1201-{yr}1230.nc"):
-    #    print(f"  WARNING: event bleeds into Dec {yr} (stop_idx={stop_idx} > 8639) — loading overflow file")
-
-    # ── Load only the needed files and concatenate into a single cube ─────────
     monthly_cubes = iris.cube.CubeList()
     for f in needed:
-        cube = iris.load(f['path'])[1]  # [1] selects the rainfall variable from the file
-        cube.attributes = {}            # clear attributes so concatenation doesn't fail
-                                        # on mismatched metadata between monthly files
+        cube = iris.load(f['path'])[1]
+        cube.attributes = {}
         monthly_cubes.append(cube)
 
     for cube in monthly_cubes:
         cube.coord('time').bounds = None
-        
+
     year_cube = monthly_cubes.concatenate_cube()
 
-    # ── Slice the concatenated cube to the exact requested window ─────────────
-    # The indices stored in start_idx/stop_idx are in the global hydro-year
-    # index space (0 = start of Dec(yr-1)). But after loading only a subset
-    # of files, the cube's own time axis starts at the beginning of the first
-    # *loaded* file, not at 0. So we subtract that file's global_start ('offset')
-    # to convert global indices into local indices within the loaded cube.
     if start_idx is not None and stop_idx is not None:
         offset = needed[0]['global_start']
         return year_cube[start_idx - offset:stop_idx - offset, :, :]
 
     return year_cube
+
+
+# def get_rainfall_cube_subsection(yr, ENS_NUM, RAINFALLDIR, start_idx=None, stop_idx=None):
+#     """
+#     Load a subsection of hourly rainfall data for a given hydrological year and ensemble member.
+    
+#     The hydrological year is defined as December(yr-1) through November(yr), meaning:
+#         - Index 0    = 1 Dec (yr-1) 00:00
+#         - Index 719  = 30 Dec (yr-1) 23:00  [end of December]
+#         - Index 720  = 1 Jan (yr)   00:00
+#         - Index 8639 = 30 Nov (yr)  23:00   [end of November, end of hydro year]
+    
+#     Each monthly file contains exactly 720 timesteps (30-day months x 24 hours).
+#     This is a 360-day calendar dataset so every month has exactly 30 days.
+    
+#     If start_idx and stop_idx are provided, only the files needed to cover that
+#     window are loaded — typically 1 or 2 files instead of all 12. This is important
+#     for performance when looping over many events.
+    
+#     An additional December(yr) file is included at the end of the file list to handle
+#     edge cases where an event starting in late November bleeds past the end of the
+#     hydrological year (index > 8639).
+    
+#     Parameters
+#     ----------
+#     yr         : int  — the hydrological year (e.g. 2067 means Dec 2066 → Nov 2067)
+#     ENS_NUM    : str  — ensemble member identifier (e.g. '01')
+#     RAINFALLDIR: str  — path to directory containing monthly .nc files
+#     start_idx  : int  — first timestep to load (inclusive), in hydro-year index space
+#     stop_idx   : int  — last timestep to load (exclusive), in hydro-year index space
+    
+#     Returns
+#     -------
+#     iris.cube.Cube with dimensions (time, projection_y_coordinate, projection_x_coordinate)
+#     """
+#     HOURS_PER_MONTH = 30 * 24  # 720 — constant for this 360-day calendar dataset
+
+#     # ── Build the full ordered list of monthly files ───────────────────────────
+#     # Each entry records the file path and the global index range it covers,
+#     # so we can later identify which files overlap with [start_idx, stop_idx].
+#     # 'global_start' is inclusive, 'global_end' is exclusive (half-open interval).
+#     all_files  = []
+#     cumulative = 0  # running total of timesteps, used to assign global index ranges
+
+#     # File 0: December of the previous calendar year
+#     # This is always the first month of the hydrological year (indices 0–719)
+#     all_files.append({
+#         'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr-1}1201-{yr-1}1230.nc",
+#         'global_start': cumulative,
+#         'global_end':   cumulative + HOURS_PER_MONTH
+#     })
+#     cumulative += HOURS_PER_MONTH
+
+#     # Files 1–11: January through November of the target year (indices 720–8639)
+#     # Note: we stop at month 11 (November) because December belongs to the
+#     # *next* hydrological year
+#     for m in range(1, 12):
+#         all_files.append({
+#             'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}{m:02d}01-{yr}{m:02d}30.nc",
+#             'global_start': cumulative,
+#             'global_end':   cumulative + HOURS_PER_MONTH
+#         })
+#         cumulative += HOURS_PER_MONTH
+
+#     # File 12: December of the target year (indices 8640–9359)
+#     # This file is ONLY needed for edge-case events that start in late November
+#     # and whose stop_idx bleeds past the end of the hydrological year (> 8639).
+#     # Including it here costs nothing if it isn't needed — the filter below will
+#     # simply not select it.
+#     all_files.append({
+#         'path':         f"{RAINFALLDIR}bc_pr_rcp85_land-cpm_uk_5km_{ENS_NUM}_1hr_{yr}1201-{yr}1230.nc",
+#         'global_start': cumulative,
+#         'global_end':   cumulative + HOURS_PER_MONTH
+#     })
+
+#     # ── Select only the files that overlap with [start_idx, stop_idx] ─────────
+#     # A file overlaps the requested window if:
+#     #   - it ends after the window starts (global_end > start_idx), AND
+#     #   - it starts before the window ends (global_start < stop_idx)
+#     # This is standard half-open interval intersection logic.
+#     # For a typical event this reduces 13 file loads down to 1 or 2.
+#     if start_idx is not None and stop_idx is not None:
+#         needed = [f for f in all_files
+#                   if f['global_end'] > start_idx and f['global_start'] < stop_idx]
+#     else:
+#         # No indices provided — load the full hydrological year
+#         needed = all_files
+
+#     # ── Warn if the overflow December file is being used ──────────────────────
+#     # This is an unusual case and worth flagging so we know it's happening
+#     #if needed and needed[-1]['path'].endswith(f"{yr}1201-{yr}1230.nc"):
+#     #    print(f"  WARNING: event bleeds into Dec {yr} (stop_idx={stop_idx} > 8639) — loading overflow file")
+
+#     # ── Load only the needed files and concatenate into a single cube ─────────
+#     monthly_cubes = iris.cube.CubeList()
+#     for f in needed:
+#         cube = iris.load(f['path'])[1]  # [1] selects the rainfall variable from the file
+#         cube.attributes = {}            # clear attributes so concatenation doesn't fail
+#                                         # on mismatched metadata between monthly files
+#         monthly_cubes.append(cube)
+
+#     for cube in monthly_cubes:
+#         cube.coord('time').bounds = None
+        
+#     year_cube = monthly_cubes.concatenate_cube()
+
+#     # ── Slice the concatenated cube to the exact requested window ─────────────
+#     # The indices stored in start_idx/stop_idx are in the global hydro-year
+#     # index space (0 = start of Dec(yr-1)). But after loading only a subset
+#     # of files, the cube's own time axis starts at the beginning of the first
+#     # *loaded* file, not at 0. So we subtract that file's global_start ('offset')
+#     # to convert global indices into local indices within the loaded cube.
+#     if start_idx is not None and stop_idx is not None:
+#         offset = needed[0]['global_start']
+#         return year_cube[start_idx - offset:stop_idx - offset, :, :]
+
+#     return year_cube
 
 def get_data_at_peak_cell(cube, one_event_results, x_idx_variable, y_idx_variable):
 
@@ -647,7 +707,7 @@ def analyse_peak_event(
     rain = peak_slice.data.astype(float)
 
     # Clean invalid values
-    #rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
+    rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
 
     # ── Pre-extract flood arrays (already numpy) ──────────────────────────
     flood_arrays = {

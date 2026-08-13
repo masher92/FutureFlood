@@ -12,6 +12,9 @@ import time
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import iris.plot as iplt
+import cftime
+from shapely.ops import unary_union
+from shapely.geometry import box, MultiPolygon
 # from rasterio.features import geometry_mask
 # from rasterio.transform import from_origin
 from shapely import contains_xy
@@ -351,6 +354,26 @@ def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
     ax.legend(loc='lower right')
     plt.tight_layout()
 
+# def get_rainfall_event_details(rainfall_events, event_num):
+#     """Extract metadata for a single event."""
+#     this_event = rainfall_events[rainfall_events['event_num'] == event_num].reset_index(drop=True)
+        
+#     return {
+#         'event_num': event_num,
+#         'yr':        int(this_event['start_year'][0]),
+#         'month':        int(this_event['start_month'][0]),
+#         'day':        int(this_event['start_day'][0]),
+#         'hour': int(this_event['start_hour'][0]),
+#         'hydro_yr':        int(this_event['hydro_year'][0]),
+#         'start_idx': int(this_event['start_indices'][0]),
+#         'stop_idx':  int(this_event['stop_indices'][0]),
+#         'max_precip_from_csv':  float(this_event['peaks'][0]),
+#         'start_time': pd.Timestamp(
+#     year=int(this_event['start_year'][0]),
+#     month=int(this_event['start_month'][0]),
+#     day=int(this_event['start_day'][0]),
+#     hour=int(this_event['start_hour'][0]))}    
+
 def get_rainfall_event_details(rainfall_events, event_num):
     """Extract metadata for a single event."""
     this_event = rainfall_events[rainfall_events['event_num'] == event_num].reset_index(drop=True)
@@ -365,11 +388,11 @@ def get_rainfall_event_details(rainfall_events, event_num):
         'start_idx': int(this_event['start_indices'][0]),
         'stop_idx':  int(this_event['stop_indices'][0]),
         'max_precip_from_csv':  float(this_event['peaks'][0]),
-        'start_time': pd.Timestamp(
+        'start_time': cftime.Datetime360Day(
     year=int(this_event['start_year'][0]),
     month=int(this_event['start_month'][0]),
     day=int(this_event['start_day'][0]),
-    hour=int(this_event['start_hour'][0]))}    
+    hour=int(this_event['start_hour'][0])) }
 
 def extract_catchment_cube(cube, catchment_poly, method, buffer=0):
     start_time1 = time.time()

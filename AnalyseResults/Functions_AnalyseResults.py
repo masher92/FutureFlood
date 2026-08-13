@@ -33,7 +33,7 @@ def partial_r2_for_catchment(df_catch, flood_metric='10cm_area'):
     r2_base = r2_score(y, LinearRegression().fit(X_base_s, y).predict(X_base_s))
     r2_full = r2_score(y, LinearRegression().fit(X_full_s, y).predict(X_full_s))
     
-    return max(r2_full - r2_base, 0)  # clip at 0; negative = SM adds nothing
+    return r2_base, r2_full, max(r2_full - r2_base, 0)  # clip at 0; negative = SM adds nothing
 
 
 def plot_with_best_fit_line(results_df, ax, col1, col2, label1, label2, title):
