@@ -10,127 +10,269 @@ import geopandas as gpd
 import iris
 import cartopy.crs as ccrs
 import iris.quickplot as qplt
+from tqdm import tqdm
 
 GRID_5KM_FILE = "/scratch/hydro4/users/la17355/FUTURE-FLOOD/UKCP_rainfall/5km/Ens_01/bc_pr_rcp85_land-cpm_uk_5km_01_1hr_19901201-19911130.nc"
 
 
-def aggregate_to_5km(
-    raster,
-    agg_type="mean",  # "mean" or "mode"
-    return_qa_array=False):
+def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=500):
+    
     """
-    Aggregate 30m raster to 5km grid.
+    Aggregate a large raster to a 5 km grid without loading the
+    entire raster into memory.
 
     Parameters
     ----------
     raster : xarray.DataArray
-        Input 30m raster (must have x/y coords)
+        Input raster with x/y coordinates.
     agg_type : str
-        "mean" (continuous) or "mode" (categorical)
+        "mean" or "mode".
     return_qa_array : bool
-        If True, returns mapping of 30m pixels → 5km cell index
+        If True, returns mapping of input pixels -> 5 km cell index.
+        WARNING: this can itself be very large for high-resolution data.
+    chunk_rows : int
+        Number of raster rows to process at a time.
 
     Returns
     -------
     xarray.Dataset
-        Aggregated result
+        Aggregated result.
     """
+    
+    
+    # ------------------------------------------------------------
+    # Load 5 km grid
+    # ------------------------------------------------------------
 
-    # --- Load 5km grid definition ---
     ds = xr.open_dataset(GRID_5KM_FILE)
+
     x5 = ds["projection_x_coordinate"].values
     y5 = ds["projection_y_coordinate"].values
-    nx, ny = len(x5), len(y5)
 
-    # --- Get 30m coords ---
+    nx = len(x5)
+    ny = len(y5)
+
+    n_cells = nx * ny
+
+    # ------------------------------------------------------------
+    # Input raster coordinates
+    # ------------------------------------------------------------
+
     x = raster["x"].values
     y = raster["y"].values
-    xx, yy = np.meshgrid(x, y)
 
-    # --- Flatten ---
-    x_flat = xx.ravel()
-    y_flat = yy.ravel()
-    vals = raster.values.ravel()
+    n_y = len(y)
+    n_x = len(x)
 
-    # --- Remove NaNs ---
-    valid = ~np.isnan(vals)
-    x_flat = x_flat[valid]
-    y_flat = y_flat[valid]
-    vals = vals[valid]
+    # ------------------------------------------------------------
+    # Accumulators
+    # ------------------------------------------------------------
 
-    # --- Map to 5km indices ---
-    ix = np.searchsorted(x5, x_flat) - 1
-    iy = np.searchsorted(y5, y_flat) - 1
-
-    # keep valid indices
-    valid_idx = (ix >= 0) & (ix < nx) & (iy >= 0) & (iy < ny)
-    ix = ix[valid_idx]
-    iy = iy[valid_idx]
-    vals = vals[valid_idx]
-
-    # --- Linear index ---
-    linear_idx = iy * nx + ix
-    n_cells = nx * ny
-    print("Finished first part")
-
-    # ============================================================
-    # 🔹 MEAN aggregation (continuous)
-    # ============================================================
     if agg_type == "mean":
-        sums = np.bincount(linear_idx, weights=vals, minlength=n_cells)
-        counts = np.bincount(linear_idx, minlength=n_cells)
 
-        mean_vals = np.full(n_cells, np.nan)
-        mask = counts > 0
-        mean_vals[mask] = sums[mask] / counts[mask]
+        sums = np.zeros(n_cells, dtype=np.float64)
+        counts = np.zeros(n_cells, dtype=np.int64)
 
-        out = mean_vals.reshape(ny, nx)
-
-        ds_out = xr.Dataset({
-            "aggregated_mean": (("projection_y_coordinate", "projection_x_coordinate"), out)})
-
-    # ============================================================
-    # 🔹 MODE aggregation (categorical)
-    # ============================================================
     elif agg_type == "mode":
-        vals = vals.astype(int)
 
-        mode_vals = np.full(n_cells, np.nan)
-        mode_prop = np.full(n_cells, np.nan)
+        vals_are_integer = True
 
-        # group by cell
-        for cell in tqdm(np.unique(linear_idx)):
-            cell_vals = vals[linear_idx == cell]
+        # Determine possible categorical values.
+        # Your soil texture has classes 0-11, so this is tiny.
+        max_class = 12
 
-            counts = np.bincount(cell_vals)
-            mode = counts.argmax()
-            prop = counts[mode] / counts.sum()
-
-            mode_vals[cell] = mode
-            mode_prop[cell] = prop
-
-        ds_out = xr.Dataset({
-            "mode": (("projection_y_coordinate", "projection_x_coordinate"),
-                     mode_vals.reshape(ny, nx)),
-            "mode_proportion": (("projection_y_coordinate", "projection_x_coordinate"),
-                                mode_prop.reshape(ny, nx))})
+        class_counts = np.zeros(
+            (max_class + 1, n_cells),
+            dtype=np.int64)
 
     else:
         raise ValueError("agg_type must be 'mean' or 'mode'")
 
-    # --- Assign coordinates ---
-    ds_out = ds_out.assign_coords({"projection_x_coordinate": x5,
-        "projection_y_coordinate": y5})
+    # ------------------------------------------------------------
+    # Optional QA array
+    # ------------------------------------------------------------
 
-    # --- Optional QA output ---
     if return_qa_array:
-        qa = np.full(xx.size, -1)
-        qa[valid] = linear_idx
-        qa = qa.reshape(xx.shape)
+        qa = np.full((n_y, n_x), -1, dtype=np.int32)
 
+        
+    # ------------------------------------------------------------
+    # Process raster in chunks
+    # ------------------------------------------------------------
+
+    for y_start in tqdm(
+        range(0, n_y, chunk_rows),
+        desc="Processing raster"):
+
+        y_end = min(y_start + chunk_rows, n_y)
+
+        # Only load this chunk from the raster
+        chunk = raster.isel(
+            y=slice(y_start, y_end))
+
+        vals = chunk.values
+
+        # Coordinates for this chunk only
+        y_chunk = y[y_start:y_end]
+
+        # --------------------------------------------------------
+        # Create coordinates without creating full-size meshgrid
+        # --------------------------------------------------------
+
+        # Repeat x for each row
+        x_flat = np.tile(x, len(y_chunk))
+
+        # Repeat each y coordinate across all x values
+        y_flat = np.repeat(y_chunk, n_x)
+
+        vals_flat = vals.ravel()
+
+        # --------------------------------------------------------
+        # Remove NaNs
+        # --------------------------------------------------------
+
+        valid = ~np.isnan(vals_flat)
+
+        x_flat = x_flat[valid]
+        y_flat = y_flat[valid]
+        vals_flat = vals_flat[valid]
+
+        # --------------------------------------------------------
+        # Map input pixels to 5 km cells
+        # --------------------------------------------------------
+
+        ix = np.searchsorted(x5, x_flat) - 1
+        iy = np.searchsorted(y5, y_flat) - 1
+
+        valid_idx = ((ix >= 0) &(ix < nx) &(iy >= 0) &(iy < ny))
+
+        ix = ix[valid_idx]
+        iy = iy[valid_idx]
+        vals_flat = vals_flat[valid_idx]
+
+        # Linear 5 km cell index
+        linear_idx = iy * nx + ix
+
+        # --------------------------------------------------------
+        # Mean
+        # --------------------------------------------------------
+
+        if agg_type == "mean":
+
+            sums += np.bincount( linear_idx, weights=vals_flat, minlength=n_cells )
+
+            counts += np.bincount(     linear_idx,     minlength=n_cells)
+
+        # --------------------------------------------------------
+        # Mode
+        # --------------------------------------------------------
+
+        elif agg_type == "mode":
+
+            vals_int = vals_flat.astype(np.int16)
+
+            # Count each category separately
+            for category in range(max_class + 1):
+
+                category_mask = vals_int == category
+
+                if not np.any(category_mask):
+                    continue
+
+                category_cells = linear_idx[category_mask]
+
+                class_counts[category] += np.bincount(category_cells, minlength=n_cells )
+
+        # --------------------------------------------------------
+        # QA
+        # --------------------------------------------------------
+
+        if return_qa_array:
+
+            # Need the original chunk-sized mapping
+            chunk_linear_idx = np.full(vals.size,  -1,  dtype=np.int32)
+
+            # Recreate mapping for all pixels in chunk
+            xx_flat = np.tile(x, len(y_chunk))
+            yy_flat = np.repeat(y_chunk, n_x)
+
+            ix_all = np.searchsorted(x5, xx_flat) - 1
+            iy_all = np.searchsorted(y5, yy_flat) - 1
+
+            valid_all = (
+                (ix_all >= 0) &
+                (ix_all < nx) &
+                (iy_all >= 0) &
+                (iy_all < ny))
+
+            chunk_linear_idx[valid_all] = (
+                iy_all[valid_all] * nx +
+                ix_all[valid_all])
+
+            qa[y_start:y_end, :] = chunk_linear_idx.reshape(
+                len(y_chunk),
+                n_x)
+
+    # ============================================================
+    # Construct output
+    # ============================================================
+
+    if agg_type == "mean":
+
+        mean_vals = np.full(
+            n_cells,
+            np.nan,
+            dtype=np.float64)
+
+        mask = counts > 0
+
+        mean_vals[mask] = (
+            sums[mask] / counts[mask])
+
+        out = mean_vals.reshape(ny, nx)
+
+        ds_out = xr.Dataset({"aggregated_mean": (("projection_y_coordinate", "projection_x_coordinate"), out)})
+
+    elif agg_type == "mode":
+
+        # Most common category
+        mode_vals = np.full(n_cells, np.nan, dtype=np.float64)
+
+        mode_prop = np.full(n_cells, np.nan, dtype=np.float64)
+
+        total_counts = class_counts.sum(axis=0)
+
+        valid_cells = total_counts > 0
+
+        mode_vals[valid_cells] = (np.argmax( class_counts[:, valid_cells],axis=0))
+
+        mode_counts = class_counts[
+            np.argmax(class_counts, axis=0),
+            np.arange(n_cells)]
+
+        mode_prop[valid_cells] = (
+            mode_counts[valid_cells] /
+            total_counts[valid_cells])
+
+        ds_out = xr.Dataset({"mode": ( ( "projection_y_coordinate", "projection_x_coordinate"),mode_vals.reshape(ny, nx)),
+
+            "mode_proportion": (("projection_y_coordinate","projection_x_coordinate"),mode_prop.reshape(ny, nx))})
+
+    # ------------------------------------------------------------
+    # Assign coordinates
+    # ------------------------------------------------------------
+
+    ds_out = ds_out.assign_coords({"projection_x_coordinate": x5, "projection_y_coordinate": y5})
+
+    # ------------------------------------------------------------
+    # Return
+    # ------------------------------------------------------------
+
+    if return_qa_array:
         return ds_out, qa
 
     return ds_out
+
 
 def convert_to_netcdf(GRID_5KM_FILE, hk_array):
 
