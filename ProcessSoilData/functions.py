@@ -14,22 +14,36 @@ from tqdm import tqdm
 
 GRID_5KM_FILE = "/scratch/hydro4/users/la17355/FUTURE-FLOOD/UKCP_rainfall/5km/Ens_01/bc_pr_rcp85_land-cpm_uk_5km_01_1hr_19901201-19911130.nc"
 
-
-def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=500):
-    
+def aggregate_to_5km(
+    raster,
+    agg_type="mean",
+    return_qa_array=False,
+    chunk_rows=500
+):
     """
-    Aggregate a large raster to a 5 km grid without loading the
-    entire raster into memory.
+    Aggregate a large raster to the UKCP 5 km grid without loading
+    the entire raster into memory.
+
+    Spatial assignment:
+        Each input 30 m pixel is assigned to the 5 km cell
+        containing the CENTRE of that 30 m pixel.
+
+    The 5 km cell boundaries are taken directly from:
+        projection_x_coordinate_bnds
+        projection_y_coordinate_bnds
 
     Parameters
     ----------
     raster : xarray.DataArray
         Input raster with x/y coordinates.
+
     agg_type : str
         "mean" or "mode".
+
     return_qa_array : bool
         If True, returns mapping of input pixels -> 5 km cell index.
         WARNING: this can itself be very large for high-resolution data.
+
     chunk_rows : int
         Number of raster rows to process at a time.
 
@@ -37,9 +51,22 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
     -------
     xarray.Dataset
         Aggregated result.
+
+    Notes
+    -----
+    The 5 km coordinate variables are cell CENTRES, not cell
+    boundaries. This was confirmed using the corresponding
+    *_bnds variables in the UKCP NetCDF. For example:
+
+        x = -197500
+        x bounds = [-200000, -195000]
+
+    so -197500 is exactly the centre of that 5 km cell.
+
+    Therefore, aggregation assigns each 30 m pixel according to
+    which 5 km cell contains its centre.
     """
-    
-    
+
     # ------------------------------------------------------------
     # Load 5 km grid
     # ------------------------------------------------------------
@@ -49,10 +76,46 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
     x5 = ds["projection_x_coordinate"].values
     y5 = ds["projection_y_coordinate"].values
 
+    # Actual 5 km cell boundaries
+    x5_bnds = ds["projection_x_coordinate_bnds"].values
+    y5_bnds = ds["projection_y_coordinate_bnds"].values
+
+    # The first column contains the lower boundary and the
+    # second column contains the upper boundary
+    x_edges = x5_bnds[:, 0]
+    x_edges = np.append(x_edges, x5_bnds[-1, 1])
+
+    y_edges = y5_bnds[:, 0]
+    y_edges = np.append(y_edges, y5_bnds[-1, 1])
+
     nx = len(x5)
     ny = len(y5)
 
     n_cells = nx * ny
+
+    # ------------------------------------------------------------
+    # Check that coordinate values really are cell centres
+    # ------------------------------------------------------------
+
+    x5_centres_from_bounds = (
+        x5_bnds[:, 0] + x5_bnds[:, 1]
+    ) / 2
+
+    y5_centres_from_bounds = (
+        y5_bnds[:, 0] + y5_bnds[:, 1]
+    ) / 2
+
+    if not np.allclose(x5, x5_centres_from_bounds):
+        raise ValueError(
+            "5 km x coordinates do not match the centres "
+            "of their coordinate bounds."
+        )
+
+    if not np.allclose(y5, y5_centres_from_bounds):
+        raise ValueError(
+            "5 km y coordinates do not match the centres "
+            "of their coordinate bounds."
+        )
 
     # ------------------------------------------------------------
     # Input raster coordinates
@@ -70,85 +133,124 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
 
     if agg_type == "mean":
 
-        sums = np.zeros(n_cells, dtype=np.float64)
-        counts = np.zeros(n_cells, dtype=np.int64)
+        sums = np.zeros(
+            n_cells,
+            dtype=np.float64
+        )
+
+        counts = np.zeros(
+            n_cells,
+            dtype=np.int64
+        )
 
     elif agg_type == "mode":
 
-        vals_are_integer = True
-
-        # Determine possible categorical values.
-        # Your soil texture has classes 0-11, so this is tiny.
+        # Soil texture classes are 0-11.
+        # Keep 12 available as well.
         max_class = 12
 
         class_counts = np.zeros(
             (max_class + 1, n_cells),
-            dtype=np.int64)
+            dtype=np.int64
+        )
 
     else:
-        raise ValueError("agg_type must be 'mean' or 'mode'")
+        raise ValueError(
+            "agg_type must be 'mean' or 'mode'"
+        )
 
     # ------------------------------------------------------------
     # Optional QA array
     # ------------------------------------------------------------
 
     if return_qa_array:
-        qa = np.full((n_y, n_x), -1, dtype=np.int32)
+        qa = np.full(
+            (n_y, n_x),
+            -1,
+            dtype=np.int32
+        )
 
-        
     # ------------------------------------------------------------
     # Process raster in chunks
     # ------------------------------------------------------------
 
     for y_start in tqdm(
         range(0, n_y, chunk_rows),
-        desc="Processing raster"):
+        desc="Processing raster"
+    ):
 
-        y_end = min(y_start + chunk_rows, n_y)
+        y_end = min(
+            y_start + chunk_rows,
+            n_y
+        )
 
         # Only load this chunk from the raster
         chunk = raster.isel(
-            y=slice(y_start, y_end))
+            y=slice(y_start, y_end)
+        )
 
         vals = chunk.values
 
-        # Coordinates for this chunk only
+        # Coordinates for this chunk
         y_chunk = y[y_start:y_end]
 
         # --------------------------------------------------------
-        # Create coordinates without creating full-size meshgrid
+        # Create coordinates for pixel CENTRES
         # --------------------------------------------------------
 
-        # Repeat x for each row
-        x_flat = np.tile(x, len(y_chunk))
+        x_flat = np.tile(
+            x,
+            len(y_chunk)
+        )
 
-        # Repeat each y coordinate across all x values
-        y_flat = np.repeat(y_chunk, n_x)
+        y_flat = np.repeat(
+            y_chunk,
+            n_x
+        )
 
         vals_flat = vals.ravel()
 
         # --------------------------------------------------------
-        # Remove NaNs
+        # Map each 30 m pixel CENTRE to a 5 km cell
         # --------------------------------------------------------
 
-        valid = ~np.isnan(vals_flat)
+        # IMPORTANT:
+        # x_edges/y_edges are the actual 5 km CELL BOUNDARIES.
+        #
+        # Therefore this asks:
+        # "Which 5 km cell contains the centre of this
+        #  30 m pixel?"
 
-        x_flat = x_flat[valid]
-        y_flat = y_flat[valid]
-        vals_flat = vals_flat[valid]
+        ix = np.searchsorted(
+            x_edges,
+            x_flat,
+            side="right"
+        ) - 1
 
-        # --------------------------------------------------------
-        # Map input pixels to 5 km cells
-        # --------------------------------------------------------
+        iy = np.searchsorted(
+            y_edges,
+            y_flat,
+            side="right"
+        ) - 1
 
-        ix = np.searchsorted(x5, x_flat) - 1
-        iy = np.searchsorted(y5, y_flat) - 1
+        valid_idx = (
+            (ix >= 0) &
+            (ix < nx) &
+            (iy >= 0) &
+            (iy < ny)
+        )
 
-        valid_idx = ((ix >= 0) &(ix < nx) &(iy >= 0) &(iy < ny))
-
+        # Remove pixels outside the 5 km grid
         ix = ix[valid_idx]
         iy = iy[valid_idx]
         vals_flat = vals_flat[valid_idx]
+
+        # Remove NaNs
+        valid_values = ~np.isnan(vals_flat)
+
+        ix = ix[valid_values]
+        iy = iy[valid_values]
+        vals_flat = vals_flat[valid_values]
 
         # Linear 5 km cell index
         linear_idx = iy * nx + ix
@@ -159,9 +261,16 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
 
         if agg_type == "mean":
 
-            sums += np.bincount( linear_idx, weights=vals_flat, minlength=n_cells )
+            sums += np.bincount(
+                linear_idx,
+                weights=vals_flat,
+                minlength=n_cells
+            )
 
-            counts += np.bincount(     linear_idx,     minlength=n_cells)
+            counts += np.bincount(
+                linear_idx,
+                minlength=n_cells
+            )
 
         # --------------------------------------------------------
         # Mode
@@ -171,17 +280,23 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
 
             vals_int = vals_flat.astype(np.int16)
 
-            # Count each category separately
             for category in range(max_class + 1):
 
-                category_mask = vals_int == category
+                category_mask = (
+                    vals_int == category
+                )
 
                 if not np.any(category_mask):
                     continue
 
-                category_cells = linear_idx[category_mask]
+                category_cells = (
+                    linear_idx[category_mask]
+                )
 
-                class_counts[category] += np.bincount(category_cells, minlength=n_cells )
+                class_counts[category] += np.bincount(
+                    category_cells,
+                    minlength=n_cells
+                )
 
         # --------------------------------------------------------
         # QA
@@ -189,29 +304,55 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
 
         if return_qa_array:
 
-            # Need the original chunk-sized mapping
-            chunk_linear_idx = np.full(vals.size,  -1,  dtype=np.int32)
+            # Mapping for ALL pixels in this chunk,
+            # irrespective of whether their value is NaN.
 
-            # Recreate mapping for all pixels in chunk
-            xx_flat = np.tile(x, len(y_chunk))
-            yy_flat = np.repeat(y_chunk, n_x)
+            chunk_linear_idx = np.full(
+                vals.size,
+                -1,
+                dtype=np.int32
+            )
 
-            ix_all = np.searchsorted(x5, xx_flat) - 1
-            iy_all = np.searchsorted(y5, yy_flat) - 1
+            xx_flat = np.tile(
+                x,
+                len(y_chunk)
+            )
+
+            yy_flat = np.repeat(
+                y_chunk,
+                n_x
+            )
+
+            ix_all = np.searchsorted(
+                x_edges,
+                xx_flat,
+                side="right"
+            ) - 1
+
+            iy_all = np.searchsorted(
+                y_edges,
+                yy_flat,
+                side="right"
+            ) - 1
 
             valid_all = (
                 (ix_all >= 0) &
                 (ix_all < nx) &
                 (iy_all >= 0) &
-                (iy_all < ny))
+                (iy_all < ny)
+            )
 
             chunk_linear_idx[valid_all] = (
-                iy_all[valid_all] * nx +
-                ix_all[valid_all])
+                iy_all[valid_all] * nx
+                + ix_all[valid_all]
+            )
 
-            qa[y_start:y_end, :] = chunk_linear_idx.reshape(
-                len(y_chunk),
-                n_x)
+            qa[y_start:y_end, :] = (
+                chunk_linear_idx.reshape(
+                    len(y_chunk),
+                    n_x
+                )
+            )
 
     # ============================================================
     # Construct output
@@ -222,47 +363,100 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
         mean_vals = np.full(
             n_cells,
             np.nan,
-            dtype=np.float64)
+            dtype=np.float64
+        )
 
         mask = counts > 0
 
         mean_vals[mask] = (
-            sums[mask] / counts[mask])
+            sums[mask] / counts[mask]
+        )
 
-        out = mean_vals.reshape(ny, nx)
+        out = mean_vals.reshape(
+            ny,
+            nx
+        )
 
-        ds_out = xr.Dataset({"aggregated_mean": (("projection_y_coordinate", "projection_x_coordinate"), out)})
+        ds_out = xr.Dataset({
+            "aggregated_mean": (
+                (
+                    "projection_y_coordinate",
+                    "projection_x_coordinate"
+                ),
+                out
+            )
+        })
 
     elif agg_type == "mode":
 
-        # Most common category
-        mode_vals = np.full(n_cells, np.nan, dtype=np.float64)
+        mode_vals = np.full(
+            n_cells,
+            np.nan,
+            dtype=np.float64
+        )
 
-        mode_prop = np.full(n_cells, np.nan, dtype=np.float64)
+        mode_prop = np.full(
+            n_cells,
+            np.nan,
+            dtype=np.float64
+        )
 
-        total_counts = class_counts.sum(axis=0)
+        total_counts = (
+            class_counts.sum(axis=0)
+        )
 
-        valid_cells = total_counts > 0
+        valid_cells = (
+            total_counts > 0
+        )
 
-        mode_vals[valid_cells] = (np.argmax( class_counts[:, valid_cells],axis=0))
+        mode_indices = np.argmax(
+            class_counts,
+            axis=0
+        )
 
-        mode_counts = class_counts[
-            np.argmax(class_counts, axis=0),
-            np.arange(n_cells)]
+        mode_vals[valid_cells] = (
+            mode_indices[valid_cells]
+        )
+
+        mode_counts = (
+            class_counts[
+                mode_indices,
+                np.arange(n_cells)
+            ]
+        )
 
         mode_prop[valid_cells] = (
-            mode_counts[valid_cells] /
-            total_counts[valid_cells])
+            mode_counts[valid_cells]
+            / total_counts[valid_cells]
+        )
 
-        ds_out = xr.Dataset({"mode": ( ( "projection_y_coordinate", "projection_x_coordinate"),mode_vals.reshape(ny, nx)),
+        ds_out = xr.Dataset({
 
-            "mode_proportion": (("projection_y_coordinate","projection_x_coordinate"),mode_prop.reshape(ny, nx))})
+            "mode": (
+                (
+                    "projection_y_coordinate",
+                    "projection_x_coordinate"
+                ),
+                mode_vals.reshape(ny, nx)
+            ),
+
+            "mode_proportion": (
+                (
+                    "projection_y_coordinate",
+                    "projection_x_coordinate"
+                ),
+                mode_prop.reshape(ny, nx)
+            )
+        })
 
     # ------------------------------------------------------------
     # Assign coordinates
     # ------------------------------------------------------------
 
-    ds_out = ds_out.assign_coords({"projection_x_coordinate": x5, "projection_y_coordinate": y5})
+    ds_out = ds_out.assign_coords({
+        "projection_x_coordinate": x5,
+        "projection_y_coordinate": y5
+    })
 
     # ------------------------------------------------------------
     # Return
@@ -272,7 +466,6 @@ def aggregate_to_5km(raster, agg_type="mean",return_qa_array=False,chunk_rows=50
         return ds_out, qa
 
     return ds_out
-
 
 def convert_to_netcdf(GRID_5KM_FILE, hk_array):
 
