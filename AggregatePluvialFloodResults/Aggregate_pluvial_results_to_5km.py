@@ -228,7 +228,7 @@ import xarray as xr
 import rioxarray as rxr
 import numpy as np
 from rasterio.transform import from_bounds
-print("Hello")
+
 # -----------------------------
 # CONFIG
 # -----------------------------

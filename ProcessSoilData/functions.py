@@ -174,10 +174,7 @@ def aggregate_to_5km(
     # Process raster in chunks
     # ------------------------------------------------------------
 
-    for y_start in tqdm(
-        range(0, n_y, chunk_rows),
-        desc="Processing raster"
-    ):
+    for y_start in range(0, n_y, chunk_rows):
 
         y_end = min(
             y_start + chunk_rows,

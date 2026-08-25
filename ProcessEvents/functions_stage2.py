@@ -500,7 +500,7 @@ def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
     plt.tight_layout()   
 
 
-def run_spatial_diagnostics(row, event_num, sm, HC_CUBE, flood_cubes, catchment_poly,
+def run_spatial_diagnostics(row, event_num, sm, flood_cubes, catchment_poly,
                              ens_num, rainfall_cube_dir, FULL_MASK_2D, depth=10):
     """
     Plots a 2x2 spatial check for a single event.
@@ -533,7 +533,7 @@ def run_spatial_diagnostics(row, event_num, sm, HC_CUBE, flood_cubes, catchment_
 
     plot_peak_check(axs[0], sm_slice,    catchment_poly, row, title='Soil moisture')
     plot_peak_check(axs[1], rainfall_slice, catchment_poly, row, title='Precipitation')
-    plot_peak_check(axs[2], HC_CUBE,     catchment_poly, row, title='Hydraulic conductivity')
+    # plot_peak_check(axs[2], HC_CUBE,     catchment_poly, row, title='Hydraulic conductivity')
     plot_peak_check(axs[3], flood_slice, catchment_poly, row, title=f'Flooded area ({depth}cm)')
 
     fig.suptitle(
@@ -682,108 +682,328 @@ def plot_cluster_check(rain, peak_slice, threshold_mask, cluster_mask,
     plt.show()
 
 
+# def analyse_peak_event(
+#     this_event_results,
+#     year_cube,
+#     flood_numpy,
+#     flood_cubes,          # only needed for plotting
+#     CATCHMENT_POLY,       # only needed for plotting
+#     boundary_gdf,         # only needed for plotting
+#     neighbourhood_size,
+#     threshold_levels,
+#     plot=False
+# ):
+#     """
+#     Fast version: uses preloaded cubes/arrays (no disk access).
+#     """
+
+#     peak_value = this_event_results['max_precip']
+#     t_local    = int(this_event_results['t_local'])
+#     yi         = int(this_event_results['y_idx'])
+#     xi         = int(this_event_results['x_idx'])
+
+#     # ── Extract rainfall slice (NO LOADING) ───────────────────────────────
+#     peak_slice = year_cube[t_local, :, :]
+#     rain = peak_slice.data.astype(float)
+
+#     # Clean invalid values
+#     rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
+
+#     # ── Pre-extract flood arrays (already numpy) ──────────────────────────
+#     flood_arrays = {
+#         (depth, var): flood_numpy[depth][var][this_event_results['event_num'] - 1, :, :]
+#         for depth in [10, 30]
+#         for var in ['area', 'vol']
+#     }
+
+#     # ── Neighbourhood stats ───────────────────────────────────────────────
+#     n  = neighbourhood_size
+#     y0 = max(0, yi - n);  y1 = min(rain.shape[0], yi + n + 1)
+#     x0 = max(0, xi - n);  x1 = min(rain.shape[1], xi + n + 1)
+
+#     neighbourhood = rain[y0:y1, x0:x1]
+
+#     results = {
+#         'neighbourhood_rain_total': float(np.nansum(neighbourhood)),
+#         'neighbourhood_rain_sum_excl_peak': float(np.nansum(neighbourhood) - peak_value),
+#         'neighbourhood_n_cells': int(np.sum(~np.isnan(neighbourhood))),
+#     }
+
+#     # Flood totals in neighbourhood
+#     for depth in [10, 30]:
+#         for var in ['area', 'vol']:
+#             results[f'neighbourhood_flood_{depth}_{var}'] = float(
+#                 np.nansum(flood_arrays[(depth, var)][y0:y1, x0:x1])
+#             )
+
+#     # ── Threshold + cluster stats ─────────────────────────────────────────
+#     for threshold_level in threshold_levels:
+
+#         t_suffix = f"_t{int(threshold_level * 100)}"
+#         threshold_value = peak_value * threshold_level
+
+#         threshold_mask = (rain >= threshold_value) & (~np.isnan(rain))
+
+#         labeled, _ = label(threshold_mask)
+#         peak_label = labeled[yi, xi]
+#         cluster_mask = (labeled == peak_label)
+
+#         # Rain stats
+#         results[f'threshold_rain_total{t_suffix}'] = float(np.nansum(rain[threshold_mask]))
+#         results[f'threshold_n_cells{t_suffix}']    = int(np.sum(threshold_mask))
+#         results[f'cluster_rain_total{t_suffix}']   = float(np.nansum(rain[cluster_mask]))
+#         results[f'cluster_n_cells{t_suffix}']      = int(np.sum(cluster_mask))
+
+#         # Flood stats
+#         for depth in [10, 30]:
+#             for var in ['area', 'vol']:
+#                 fa = flood_arrays[(depth, var)]
+#                 results[f'threshold_flood_{depth}_{var}{t_suffix}'] = float(np.nansum(fa[threshold_mask]))
+#                 results[f'cluster_flood_{depth}_{var}{t_suffix}']   = float(np.nansum(fa[cluster_mask]))
+        
+#         # ── Optional plotting ─────────────────────────────────────────────
+#         if plot and threshold_level == 0.5:
+#             plot_cluster_check(
+#                 rain=rain,
+#                 peak_slice=peak_slice,
+#                 threshold_mask=threshold_mask,
+#                 cluster_mask=cluster_mask,
+#                 row=this_event_results,
+#                 y0=y0, y1=y1, x0=x0, x1=x1,
+#                 threshold_level=threshold_level,
+#                 neighbourhood_sum=results['neighbourhood_rain_sum_excl_peak'],
+#                 neighbourhood_size=neighbourhood_size,
+#                 flood=flood_cubes[10]['area'][this_event_results['event_num'] - 1],
+#                 catchment_poly=CATCHMENT_POLY,
+#                 boundary_gdf=boundary_gdf,
+#             )
+            
+            
+#     assert cluster_mask[yi, xi] == True            
+#     assert results['neighbourhood_n_cells'] > 0
+#     assert results['neighbourhood_n_cells'] <= (2*n+1)**2
+#     assert results['cluster_rain_total_t50'] <= results['threshold_rain_total_t50']
+    
+#     return results
+
 def analyse_peak_event(
     this_event_results,
     year_cube,
     flood_numpy,
-    flood_cubes,          # only needed for plotting
+    flood_cubes,          # only needed for plotting (iris cubes retain coords for maps)
     CATCHMENT_POLY,       # only needed for plotting
     boundary_gdf,         # only needed for plotting
     neighbourhood_size,
     threshold_levels,
+    antecedent_arrays=None,   # dict: {'ante_rain_1d': 2D array, 'ante_rain_5d': 2D array, 'ante_sm': 2D array, ...}
     plot=False
 ):
     """
-    Fast version: uses preloaded cubes/arrays (no disk access).
+    Characterise a single rainfall event's spatial footprint at three
+    nested spatial scales, and summarise flood outcomes and antecedent
+    wetness conditions (rainfall and soil moisture) over each of those
+    same footprints.
+
+    The three spatial scales, from smallest/fixed to largest/event-defined:
+
+    1. Peak cell (yi, xi)
+       — the single grid cell where the event's maximum precipitation
+         occurred. Used as the indexing anchor for the other two scales,
+         and directly for the '..._point' antecedent variables.
+
+    2. Neighbourhood
+       — a fixed-size square window of (2*neighbourhood_size + 1) cells
+         centred on the peak cell, regardless of how the storm actually
+         looked. A crude, storm-agnostic "local area" scale — useful as
+         a baseline that doesn't depend on the threshold_levels choice.
+
+    3. Threshold mask / cluster
+       — cells where rainfall exceeded `threshold_level * peak_value`.
+         `threshold_mask` includes ALL such cells in the catchment (which
+         may include unconnected patches elsewhere in the domain that
+         happened to also be intense). `cluster_mask` is the subset of
+         `threshold_mask` that is spatially CONNECTED to the peak cell
+         (via scipy.ndimage.label) — i.e. the actual contiguous storm
+         footprint containing the peak, not just "intense cells anywhere".
+         This is repeated at each level in `threshold_levels` (e.g. 50%,
+         60%, 80% of peak intensity) to see how footprint size and
+         antecedent conditions change as you tighten the definition of
+         "part of the storm".
+
+    For each of these three scales, the function reports:
+      - the rainfall itself (total/n_cells for footprint size and intensity)
+      - flood outcomes (area, volume, at 10cm and 30cm depth thresholds)
+      - antecedent conditions (from `antecedent_arrays`), summarised as
+        the MEAN over the footprint — not the sum, since footprint size
+        varies event-to-event and across threshold levels, and we want
+        "how wet was this area beforehand" (a rate/state), not "how much
+        antecedent rain fell across an area of this size" (which would
+        just track footprint size and confound with storm extent).
+
+    Parameters
+    ----------
+    this_event_results : dict
+        Per-event metadata already computed upstream: must contain
+        'max_precip', 't_local' (time index of peak within year_cube),
+        'y_idx'/'x_idx' (grid location of peak, within year_cube's
+        coordinate system), and 'event_num' (1-indexed, used to index
+        into the flood arrays' leading (event) dimension).
+    year_cube : iris.cube.Cube
+        The event-window rainfall cube (time, y, x), already subset to
+        the catchment bbox. Only the peak-time slice is used here.
+    flood_numpy : dict
+        {depth: {'area': ndarray, 'vol': ndarray}} — flood outcome
+        arrays, shape (event, y, x), same y/x grid as year_cube.
+    antecedent_arrays : dict or None
+        Optional. Each value is a 2D (y, x) array on the SAME grid and
+        offset as `rain` (i.e. year_cube's spatial subset) — e.g. a
+        rolling rainfall total over a lookback window, or the most
+        recent soil moisture field before the event. Keys become part
+        of the output column names (see below).
+    neighbourhood_size : int
+        Half-width of the fixed neighbourhood window, in cells.
+    threshold_levels : list of float
+        e.g. [0.5, 0.6, 0.8] — fractions of peak intensity defining the
+        storm footprint at each scale.
+    plot : bool
+        If True, generates a diagnostic figure at the 50% threshold level
+        only (for spot-checking specific events, not for bulk runs).
+
+    Returns
+    -------
+    dict
+        Flat dict of scalar results, suffixed by scale
+        (neighbourhood_/threshold_..._t50/cluster_..._t50 etc.),
+        ready to be merged into `this_event_results`.
     """
 
+    # ── Pull out the essentials for this event ──────────────────────────────
     peak_value = this_event_results['max_precip']
     t_local    = int(this_event_results['t_local'])
-    yi         = int(this_event_results['y_idx'])
-    xi         = int(this_event_results['x_idx'])
+    yi         = int(this_event_results['y_idx'])   # peak cell row
+    xi         = int(this_event_results['x_idx'])   # peak cell col
 
-    # ── Extract rainfall slice (NO LOADING) ───────────────────────────────
+    # ── Extract the rainfall field AT THE MOMENT OF PEAK INTENSITY ──────────
+    # (This is a single time-slice, not a total over the event — it's what
+    # defines the storm's spatial footprint/shape at its most intense moment.)
     peak_slice = year_cube[t_local, :, :]
     rain = peak_slice.data.astype(float)
 
-    # Clean invalid values
+    # Clean sentinel/fill values so they don't pollute nansum/nanmean below
     rain = np.where((rain == -99999) | (rain > 1e19), np.nan, rain)
 
-    # ── Pre-extract flood arrays (already numpy) ──────────────────────────
+    # ── Pre-slice flood arrays down to this event's 2D (y, x) layer ─────────
+    # (flood_numpy is 3D: event x y x x — index into the event dimension once,
+    # up front, so the threshold loop below doesn't repeat this lookup.)
     flood_arrays = {
         (depth, var): flood_numpy[depth][var][this_event_results['event_num'] - 1, :, :]
         for depth in [10, 30]
         for var in ['area', 'vol']
     }
 
-    # ── Neighbourhood stats ───────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════
+    # SCALE 1: Neighbourhood — fixed-size window around the peak cell
+    # ══════════════════════════════════════════════════════════════════════
     n  = neighbourhood_size
     y0 = max(0, yi - n);  y1 = min(rain.shape[0], yi + n + 1)
     x0 = max(0, xi - n);  x1 = min(rain.shape[1], xi + n + 1)
-
     neighbourhood = rain[y0:y1, x0:x1]
 
     results = {
+        # Total rainfall summed across the neighbourhood window
         'neighbourhood_rain_total': float(np.nansum(neighbourhood)),
+        # Same, but excluding the peak cell's own value (isolates the
+        # contribution of the surrounding cells only)
         'neighbourhood_rain_sum_excl_peak': float(np.nansum(neighbourhood) - peak_value),
+        # How many valid (non-NaN, i.e. in-catchment) cells the window
+        # actually covered — window can be clipped near catchment edges
         'neighbourhood_n_cells': int(np.sum(~np.isnan(neighbourhood))),
     }
 
-    # Flood totals in neighbourhood
+    # Flood outcomes summed over the same neighbourhood window
     for depth in [10, 30]:
         for var in ['area', 'vol']:
             results[f'neighbourhood_flood_{depth}_{var}'] = float(
-                np.nansum(flood_arrays[(depth, var)][y0:y1, x0:x1])
-            )
+                np.nansum(flood_arrays[(depth, var)][y0:y1, x0:x1]))
 
-    # ── Threshold + cluster stats ─────────────────────────────────────────
+    # ── Antecedent conditions over the neighbourhood ─────────────────────────
+    if antecedent_arrays:
+        for ante_name, ante_grid in antecedent_arrays.items():
+            ante_nbhd = ante_grid[y0:y1, x0:x1]
+            # Mean over the window — "how wet was the local area beforehand"
+            results[f'neighbourhood_{ante_name}_mean'] = float(np.nanmean(ante_nbhd))
+            # Value at the single peak cell only — the most localised
+            # possible antecedent measure, matched 1:1 to where HC/flood
+            # stats are also extracted at a point
+            results[f'neighbourhood_{ante_name}_point'] = float(ante_grid[yi, xi])
+
+    # ══════════════════════════════════════════════════════════════════════
+    # SCALE 2 & 3: Threshold mask and connected cluster, per threshold level
+    # ══════════════════════════════════════════════════════════════════════
     for threshold_level in threshold_levels:
-
-        t_suffix = f"_t{int(threshold_level * 100)}"
+        t_suffix = f"_t{int(threshold_level * 100)}"   # e.g. '_t50', '_t60', '_t80'
         threshold_value = peak_value * threshold_level
 
+        # All cells (anywhere in the catchment) whose rainfall meets the
+        # threshold — may include disconnected patches unrelated to this storm
         threshold_mask = (rain >= threshold_value) & (~np.isnan(rain))
 
+        # Connected-component labelling: isolates just the patch of
+        # threshold-exceeding cells that is spatially contiguous with the
+        # peak cell — i.e. the actual storm footprint, not incidental
+        # intense cells elsewhere in the catchment
         labeled, _ = label(threshold_mask)
         peak_label = labeled[yi, xi]
         cluster_mask = (labeled == peak_label)
 
-        # Rain stats
+        # Rainfall stats: footprint size (n_cells) and total intensity,
+        # for both the loose threshold set and the tight connected cluster
         results[f'threshold_rain_total{t_suffix}'] = float(np.nansum(rain[threshold_mask]))
         results[f'threshold_n_cells{t_suffix}']    = int(np.sum(threshold_mask))
         results[f'cluster_rain_total{t_suffix}']   = float(np.nansum(rain[cluster_mask]))
         results[f'cluster_n_cells{t_suffix}']      = int(np.sum(cluster_mask))
 
-        # Flood stats
+        # Flood outcomes summed over each footprint definition
         for depth in [10, 30]:
             for var in ['area', 'vol']:
                 fa = flood_arrays[(depth, var)]
                 results[f'threshold_flood_{depth}_{var}{t_suffix}'] = float(np.nansum(fa[threshold_mask]))
                 results[f'cluster_flood_{depth}_{var}{t_suffix}']   = float(np.nansum(fa[cluster_mask]))
-        
-        # ── Optional plotting ─────────────────────────────────────────────
+
+        # ── Antecedent conditions over each footprint definition ────────────
+        if antecedent_arrays:
+            for ante_name, ante_grid in antecedent_arrays.items():
+                # Mean antecedent value across ALL threshold-exceeding cells
+                # (includes any disconnected intense patches elsewhere)
+                results[f'threshold_{ante_name}_mean{t_suffix}'] = float(np.nanmean(ante_grid[threshold_mask]))
+                # Mean antecedent value across just the connected storm
+                # footprint — the most physically meaningful of the three
+                # antecedent scales, since it's matched exactly to "the
+                # area that actually received this storm's core rainfall"
+                results[f'cluster_{ante_name}_mean{t_suffix}']   = float(np.nanmean(ante_grid[cluster_mask]))
+
+        # ── Optional diagnostic plot, generated once at the 50% level only ──
         if plot and threshold_level == 0.5:
             plot_cluster_check(
-                rain=rain,
-                peak_slice=peak_slice,
-                threshold_mask=threshold_mask,
-                cluster_mask=cluster_mask,
-                row=this_event_results,
-                y0=y0, y1=y1, x0=x0, x1=x1,
+                rain=rain, peak_slice=peak_slice,
+                threshold_mask=threshold_mask, cluster_mask=cluster_mask,
+                row=this_event_results, y0=y0, y1=y1, x0=x0, x1=x1,
                 threshold_level=threshold_level,
                 neighbourhood_sum=results['neighbourhood_rain_sum_excl_peak'],
                 neighbourhood_size=neighbourhood_size,
                 flood=flood_cubes[10]['area'][this_event_results['event_num'] - 1],
-                catchment_poly=CATCHMENT_POLY,
-                boundary_gdf=boundary_gdf,
-            )
-            
-            
-    assert cluster_mask[yi, xi] == True            
-    assert results['neighbourhood_n_cells'] > 0
-    assert results['neighbourhood_n_cells'] <= (2*n+1)**2
-    assert results['cluster_rain_total_t50'] <= results['threshold_rain_total_t50']
-    
+                catchment_poly=CATCHMENT_POLY, boundary_gdf=boundary_gdf)
+
+    # ── Sanity checks ─────────────────────────────────────────────────────
+    # (These use the LAST threshold_level's cluster_mask from the loop above,
+    # since Python leaves loop variables bound after the loop exits — a bit
+    # implicit; worth being aware this only checks the final threshold level,
+    # not all of them.)
+    assert cluster_mask[yi, xi] == True             # peak cell must always be part of its own cluster
+    assert results['neighbourhood_n_cells'] > 0      # window wasn't entirely out-of-catchment
+    assert results['neighbourhood_n_cells'] <= (2*n+1)**2  # window wasn't double-counted/malformed
+    assert results['cluster_rain_total_t50'] <= results['threshold_rain_total_t50']  # cluster ⊆ threshold set
+
     return results
 
        

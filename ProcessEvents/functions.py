@@ -33,7 +33,6 @@ iris.FUTURE.datum_support = True
 
 def find_max_precip_location(cube, start_idx, stop_idx, x_offset=0, y_offset=0, mask_2d=None):
     
-    # Slice the event window first — much smaller than full year
     cube_sliced = cube[start_idx:stop_idx,:,:]
     data = np.array(cube_sliced.data)
     data[data >= 1e19] = np.nan
@@ -380,10 +379,10 @@ def get_rainfall_event_details(rainfall_events, event_num):
         
     return {
         'event_num': event_num,
-        'yr':        int(this_event['start_year'][0]),
-        'month':        int(this_event['start_month'][0]),
-        'day':        int(this_event['start_day'][0]),
-        'hour': int(this_event['start_hour'][0]),
+        'start_year':        int(this_event['start_year'][0]),
+        'start_month':        int(this_event['start_month'][0]),
+        'start_day':        int(this_event['start_day'][0]),
+        'start_hour': int(this_event['start_hour'][0]),
         'hydro_yr':        int(this_event['hydro_year'][0]),
         'start_idx': int(this_event['start_indices'][0]),
         'stop_idx':  int(this_event['stop_indices'][0]),
