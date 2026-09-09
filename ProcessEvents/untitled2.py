@@ -204,7 +204,7 @@ def analyse_peak_event(
 
     return results
 
-for catchment_num in ['1', '106', '69', '71', '65' ]:
+for catchment_num in ['95', '23', '54_c', '86', '37', '8']:
 
     print(f"Running for {catchment_num}")
     if not os.path.exists(os.path.join(OUT_DIR, f"Catchment_{catchment_num}")):

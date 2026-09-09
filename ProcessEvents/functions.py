@@ -115,6 +115,18 @@ def filter_closer_to_catchment(cube, catchment_poly, plot=False, boundary_gdf = 
         
     return sub_cube
 
+def filter_closer_to_catchment_xr_bounds(da_or_ds, catchment_poly, x_dim="projection_x_coordinate",
+                                           y_dim="projection_y_coordinate", cell_size=5000, buffer=0):
+    minx, miny, maxx, maxy = catchment_poly.bounds
+    x_full = da_or_ds[x_dim].values
+    y_full = da_or_ds[y_dim].values
+    half = cell_size / 2
+
+    x_mask = (x_full + half >= minx - buffer) & (x_full - half <= maxx + buffer)
+    y_mask = (y_full + half >= miny - buffer) & (y_full - half <= maxy + buffer)
+
+    return da_or_ds.isel({x_dim: np.where(x_mask)[0], y_dim: np.where(y_mask)[0]})
+
 def get_rainfall_cube(yr, ENS_NUM, RAINFALLDIR):
     """Load and concatenate monthly rainfall cubes for the event year.
     Loads Dec of previous year + Jan-Nov of target year.
