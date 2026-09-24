@@ -15,16 +15,8 @@ import iris.plot as iplt
 import cftime
 from shapely.ops import unary_union
 from shapely.geometry import box, MultiPolygon
-# from rasterio.features import geometry_mask
-# from rasterio.transform import from_origin
 from shapely import contains_xy
-# from shapely.geometry import box, MultiPolygon
-# from shapely.strtree import STRtree
 from scipy.interpolate import interp1d
-# from shapely.geometry import mapping
-# import cartopy.feature as cfeature
-# from shapely.ops import unary_union
-# import iris.quickplot as qplt
 
 warnings.filterwarnings("ignore", category=IrisCfMissingVarWarning)
 warnings.filterwarnings("ignore", message=".*ensemble_member_id.*")
@@ -146,8 +138,6 @@ def get_rainfall_cube(yr, ENS_NUM, RAINFALLDIR):
     return monthly_cubes.concatenate_cube()
 
 
-
-
 def subset_cube_to_bbox(cube, catchment_poly, buffer=0):
     minx, miny, maxx, maxy = catchment_poly.bounds
 
@@ -156,8 +146,7 @@ def subset_cube_to_bbox(cube, catchment_poly, buffer=0):
 
     constraint = iris.Constraint(
         projection_x_coordinate=lambda x: (minx - buffer) <= x <= (maxx + buffer),
-        projection_y_coordinate=lambda y: (miny - buffer) <= y <= (maxy + buffer)
-    )
+        projection_y_coordinate=lambda y: (miny - buffer) <= y <= (maxy + buffer))
 
     sub_cube = cube.extract(constraint)
 
@@ -396,6 +385,7 @@ def get_rainfall_event_details(rainfall_events, event_num):
         'start_day':        int(this_event['start_day'][0]),
         'start_hour': int(this_event['start_hour'][0]),
         'hydro_yr':        int(this_event['hydro_year'][0]),
+        'event_durations':        int(this_event['event_durations'][0]),
         'start_idx': int(this_event['start_indices'][0]),
         'stop_idx':  int(this_event['stop_indices'][0]),
         'max_precip_from_csv':  float(this_event['peaks'][0]),

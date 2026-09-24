@@ -11,11 +11,12 @@ import seaborn as sns
 from matplotlib.cm import ScalarMappable
 
 
-
-def regional_period_summary(df,variables,region_col="geo_region",year_col="start_year",start_period=(1990, 2020),
-                            future_period=(2050, 2080),):
+def regional_period_summary(df, variables, region_col="geo_region", year_col="start_year",
+                             start_period=(1990, 2020), nearfuture_period=(2020, 2050),
+                             future_period=(2050, 2080)):
     """
-    Calculate regional means for two periods and the change between them.
+    Calculate regional means for three periods (baseline, near-future, future)
+    and the change from baseline to each future period.
 
     Parameters
     ----------
@@ -34,64 +35,163 @@ def regional_period_summary(df,variables,region_col="geo_region",year_col="start
     start_period : tuple
         (first_year, last_year) for baseline period.
 
+    nearfuture_period : tuple
+        (first_year, last_year) for near-future period.
+
     future_period : tuple
         (first_year, last_year) for future period.
 
     Returns
     -------
     pandas.DataFrame
-        One row per region with baseline, future, absolute change
-        and percentage change for each variable.
+        One row per region with baseline, near-future, future,
+        and absolute/percentage change (baseline -> near-future,
+        baseline -> future) for each variable.
     """
 
     df = df.copy()
 
-    # Keep only the two periods
-    baseline_mask = df[year_col].between(*start_period)
-    future_mask = df[year_col].between(*future_period)
+    # Define periods: label -> (mask, suffix, (first_year, last_year))
+    periods = {
+        "baseline": (start_period, "1990_2020"),
+        "nearfuture": (nearfuture_period, "2020_2050"),
+        "future": (future_period, "2050_2080"),
+    }
 
-    baseline = df[baseline_mask]
-    future = df[future_mask]
+    subsets = {}
+    result = None
 
-    # Mean of requested variables by region
-    baseline_means = baseline.groupby(region_col, observed=True)[variables].mean()
+    for label, (period, suffix) in periods.items():
+        mask = df[year_col].between(*period)
+        subset = df[mask]
+        subsets[label] = (subset, suffix)
 
-    future_means = (future.groupby(region_col, observed=True)[variables].mean())
+        # Mean of requested variables by region
+        means = subset.groupby(region_col, observed=True)[variables].mean()
+        means = means.add_suffix(f"_{suffix}")
 
-    # Rename columns
-    baseline_means = baseline_means.add_suffix("_1990_2020")
-    future_means = future_means.add_suffix("_2050_2080")
+        # Number of events
+        counts = subset.groupby(region_col, observed=True).size().rename(f"n_events_{suffix}")
 
-    # Combine
-    result = baseline_means.join(future_means,how="outer")
+        # Mean number of events per year
+        n_years = period[1] - period[0] + 1
+        counts_mean = (subset.groupby(region_col, observed=True).size() / n_years).rename(
+            f"mean_events_per_year_{suffix}")
 
-    # Calculate changes
-    for var in variables:
+        combined = means.join(counts, how="outer").join(counts_mean, how="outer")
 
-        result[f"{var}_change"] = (result[f"{var}_2050_2080"] - result[f"{var}_1990_2020"])
-        result[f"{var}_pct_change"] = (result[f"{var}_change"]/ result[f"{var}_2050_2080"]* 100)
+        result = combined if result is None else result.join(combined, how="outer")
 
-    # Number of events
-    baseline_counts = (baseline.groupby(region_col, observed=True).size().rename("n_events_1990_2020"))
-    future_counts = (future.groupby(region_col, observed=True).size().rename("n_events_2050_2080"))
+    baseline_suffix = periods["baseline"][1]
 
-    result = result.join(baseline_counts, how="outer")
-    result = result.join(future_counts, how="outer")
+    # Calculate changes: baseline -> nearfuture, baseline -> future
+    for future_label in ["nearfuture", "future"]:
+        suffix = periods[future_label][1]
 
-    result["n_events_change"] = (result["n_events_2050_2080"]- result["n_events_1990_2020"])
-    result["n_events_pct_change"] = (result["n_events_change"]/ result["n_events_1990_2020"]* 100)
-    
-    # Mean number of events per year
-    baseline_counts_mean = (baseline.groupby(region_col, observed=True).size() / (start_period[1] - start_period[0] + 1)).rename("mean_events_per_year_1990_2020")
-    future_counts_mean = (future.groupby(region_col, observed=True).size() / (future_period[1] - future_period[0] + 1)).rename("mean_events_per_year_2050_2080")
+        for var in variables:
+            result[f"{var}_change_{suffix}"] = (
+                result[f"{var}_{suffix}"] - result[f"{var}_{baseline_suffix}"])
+            result[f"{var}_pct_change_{suffix}"] = (
+                result[f"{var}_change_{suffix}"] / result[f"{var}_{baseline_suffix}"] * 100)
 
-    result = result.join(baseline_counts_mean, how="outer")
-    result = result.join(future_counts_mean, how="outer")
+        result[f"n_events_change_{suffix}"] = (
+            result[f"n_events_{suffix}"] - result[f"n_events_{baseline_suffix}"])
+        result[f"n_events_pct_change_{suffix}"] = (
+            result[f"n_events_change_{suffix}"] / result[f"n_events_{baseline_suffix}"] * 100)
 
-    result["mean_events_per_year_change"] = (result["mean_events_per_year_2050_2080"] - result["mean_events_per_year_1990_2020"])
-    result["mean_events_per_year_pct_change"] = (result["mean_events_per_year_change"] / result["mean_events_per_year_1990_2020"] * 100)
-    
+        result[f"mean_events_per_year_change_{suffix}"] = (
+            result[f"mean_events_per_year_{suffix}"] - result[f"mean_events_per_year_{baseline_suffix}"])
+        result[f"mean_events_per_year_pct_change_{suffix}"] = (
+            result[f"mean_events_per_year_change_{suffix}"]
+            / result[f"mean_events_per_year_{baseline_suffix}"] * 100)
+
     return result.reset_index()
+
+# def regional_period_summary(df,variables,region_col="geo_region",year_col="start_year",
+#                             start_period=(1990, 2020), nearfuture_period=(2020, 2050),
+#                             future_period=(2050, 2080),):
+#     """
+#     Calculate regional means for two periods and the change between them.
+
+#     Parameters
+#     ----------
+#     df : pandas.DataFrame
+#         Event dataframe.
+
+#     variables : list of str
+#         Columns for which to calculate the mean.
+
+#     region_col : str
+#         Column containing region names.
+
+#     year_col : str
+#         Column containing event year.
+
+#     start_period : tuple
+#         (first_year, last_year) for baseline period.
+
+#     future_period : tuple
+#         (first_year, last_year) for future period.
+
+#     Returns
+#     -------
+#     pandas.DataFrame
+#         One row per region with baseline, future, absolute change
+#         and percentage change for each variable.
+#     """
+
+#     df = df.copy()
+
+#     # Keep only the two periods
+#     baseline_mask = df[year_col].between(*start_period)
+#     nearfuture_mask = df[year_col].between(*nearfuture_period)
+#     future_mask = df[year_col].between(*future_period)
+
+#     baseline = df[baseline_mask]
+#     nearfuture = df[nearfuture_mask]
+#     future = df[future_mask]
+
+#     # Mean of requested variables by region
+#     baseline_means = baseline.groupby(region_col, observed=True)[variables].mean()
+#     nearfuture_means = nearfuture.groupby(region_col, observed=True)[variables].mean()
+#     future_means = (future.groupby(region_col, observed=True)[variables].mean())
+
+#     # Rename columns
+#     baseline_means = baseline_means.add_suffix("_1990_2020")
+#     nearfuture_means = nearfuture_means.add_suffix("_2020_20850") 
+#     future_means = future_means.add_suffix("_2050_2080")
+
+#     # Combine
+#     result = baseline_means.join(nearfuture_means,how="outer")
+#     result = result.join(future_means,how="outer")
+    
+#     # Calculate changes
+#     for var in variables:
+
+#         result[f"{var}_change"] = (result[f"{var}_2050_2080"] - result[f"{var}_1990_2020"])
+#         result[f"{var}_pct_change"] = (result[f"{var}_change"]/ result[f"{var}_2050_2080"]* 100)
+
+#     # Number of events
+#     baseline_counts = (baseline.groupby(region_col, observed=True).size().rename("n_events_1990_2020"))
+#     future_counts = (future.groupby(region_col, observed=True).size().rename("n_events_2050_2080"))
+
+#     result = result.join(baseline_counts, how="outer")
+#     result = result.join(future_counts, how="outer")
+
+#     result["n_events_change"] = (result["n_events_2050_2080"]- result["n_events_1990_2020"])
+#     result["n_events_pct_change"] = (result["n_events_change"]/ result["n_events_1990_2020"]* 100)
+    
+#     # Mean number of events per year
+#     baseline_counts_mean = (baseline.groupby(region_col, observed=True).size() / (start_period[1] - start_period[0] + 1)).rename("mean_events_per_year_1990_2020")
+#     future_counts_mean = (future.groupby(region_col, observed=True).size() / (future_period[1] - future_period[0] + 1)).rename("mean_events_per_year_2050_2080")
+
+#     result = result.join(baseline_counts_mean, how="outer")
+#     result = result.join(future_counts_mean, how="outer")
+
+#     result["mean_events_per_year_change"] = (result["mean_events_per_year_2050_2080"] - result["mean_events_per_year_1990_2020"])
+#     result["mean_events_per_year_pct_change"] = (result["mean_events_per_year_change"] / result["mean_events_per_year_1990_2020"] * 100)
+    
+#     return result.reset_index()
 
 def regional_trends(df, region_col, value_col, agg_func, label):
     """Compute annual regional series, then fit trend + % change per region."""
@@ -151,16 +251,16 @@ def make_subplot(axs, variable, y_label, title, trend_rounding, trend_unit ):
     axs.set_title(title, fontsize=20)
     axs.legend(fontsize=14);
     
-    axs.tick_params(axis='both', which='major', labelsize=12)
+    axs.tick_params(axis='both', which='major',  labelsize=12)
 
-def make_spatial_change_plot(summary_gdf, variable, title, unit):
+def make_spatial_change_plot(summary_gdf, variable, title, unit, timeperiod1, timeperiod2):
     fig, axes = plt.subplots(1, 2,figsize=(10, 6))
     axes=axes.flatten()
     # Number of events
-    summary_gdf.plot(column=f"{variable}_1990_2020",ax=axes[0],cmap="YlOrRd",edgecolor="black",
+    summary_gdf.plot(column=f"{variable}_{timeperiod1}",ax=axes[0],cmap="YlOrRd",edgecolor="black",
                            linewidth=0.5,legend=True, legend_kwds={"label": "n"})
     #                  norm=PowerNorm(gamma=0.3)
-    axes[0].set_title(f"{title} \n1990–2020", fontsize=18)
+    axes[0].set_title(f"{title} \n{timeperiod1}", fontsize=18)
     axes[0].set_axis_off()
 
     cbar = axes[0].get_figure().axes[-1]
@@ -168,14 +268,14 @@ def make_spatial_change_plot(summary_gdf, variable, title, unit):
     cbar.set_ylabel(unit, fontsize=14)
 
     # Max precipitation
-    summary_gdf.plot(column=f"{variable}_2050_2080",ax=axes[1],cmap="YlOrRd",edgecolor="black",
+    summary_gdf.plot(column=f"{variable}_{timeperiod2}",ax=axes[1],cmap="YlOrRd",edgecolor="black",
                            linewidth=0.5,legend=True, legend_kwds={"label": "n"})
 
     cbar = axes[1].get_figure().axes[-1]
     cbar.tick_params(labelsize=15)
     cbar.set_ylabel(unit, fontsize=14)
 
-    axes[1].set_title(f"{title} \n2050–2080", fontsize=18)
+    axes[1].set_title(f"{title} \n{timeperiod2}", fontsize=18)
     axes[1].set_axis_off()
 
     fig.tight_layout()

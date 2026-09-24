@@ -42,8 +42,7 @@ def clip_gravitational(ds, var, bounds, CRS_TARGET):
         minx=bounds.bounds[0],
         miny=bounds.bounds[1],
         maxx=bounds.bounds[2],
-        maxy=bounds.bounds[3],
-    )
+        maxy=bounds.bounds[3],)
 
 
 def resample_to_30m_array(source_data, dem):
@@ -53,15 +52,13 @@ def resample_to_30m_array(source_data, dem):
         raise ValueError(f"Expected a 2D array, got {source_array.shape}")
 
     resampled = np.empty((dem["height"], dem["width"]), dtype=source_array.dtype)
-    reproject(
-        source=source_array,
+    reproject(source=source_array,
         destination=resampled,
         src_transform=source_data.rio.transform(),
         src_crs=source_data.rio.crs,
         dst_transform=dem["transform"],
         dst_crs=dem["crs"],
-        resampling=Resampling.nearest,
-    )
+        resampling=Resampling.nearest,)
     return resampled
 
 
@@ -94,7 +91,7 @@ def load_soil_grids(porosity_csv, soils_lookup_csv, soil_texture_dir, target_has
             hc_values[~valid] = np.nan
             lu_values = 0.06375 * np.sqrt(hc_values)
 
-            soil_grids[ha_num] = {"porosity": porosity, "lu": lu_values, 'hc':hc_values}
+            soil_grids[ha_num] = {"texture" : valid, "porosity": porosity, "lu": lu_values, 'hc':hc_values}
 
     return soil_grids
 
@@ -116,6 +113,5 @@ def aggregate_to_coarse_grid(fine_array, dem_info, coarse_da, resampling=Resampl
         dst_crs=coarse_da.rio.crs,
         src_nodata=np.nan,
         dst_nodata=np.nan,
-        resampling=resampling,
-    )
+        resampling=resampling,)
     return coarse_array

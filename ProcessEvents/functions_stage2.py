@@ -111,8 +111,59 @@ from config import *
 #     fig.suptitle(f"Catchment {catchment_num} — EM{ens_num} — Peak event (year {year}, event {event_num})",
 #                  fontsize=12)
 #     fig.tight_layout()
-    
 
+HOURS_PER_MONTH = 30 * 24  # 720, matches get_rainfall_cube_subsection    
+def get_rainfall_lookback_cube(year, ens_num, rainfall_cube_dir, event_start_idx, lookback_hours):
+    """
+    Fetch a rainfall cube covering [event_start_idx - lookback_hours, event_start_idx)
+    in the same global-index convention as get_rainfall_cube_subsection(year, ...).
+
+    Handles the case where the lookback window crosses back before the start
+    of `year`'s cube (i.e. before 1 Dec of year-1) by pulling the tail of
+    year-1's own cube. Assumes lookback_hours < HOURS_PER_MONTH (true for
+    windows up to ~29 days), so at most one boundary crossing is needed.
+    """
+    if lookback_hours >= HOURS_PER_MONTH:
+        raise ValueError(
+            f"lookback_hours={lookback_hours} >= {HOURS_PER_MONTH}; this helper "
+            f"only handles a single hydro-year boundary crossing."
+        )
+
+    lookback_start_idx = event_start_idx - lookback_hours
+
+    if lookback_start_idx >= 0:
+        # Entirely within this year's cube — no boundary crossing needed
+        return get_rainfall_cube_subsection(
+            year, ens_num, rainfall_cube_dir,
+            start_idx=lookback_start_idx, stop_idx=event_start_idx)
+
+    # Need to reach back into year-1's own cube
+    if year - 1 <= DATASET_MIN_YEAR:
+        raise ValueError(
+            f"Lookback window for year={year} needs data before "
+            f"{DATASET_MIN_YEAR}1201, which is before the dataset start."
+        )
+
+    deficit = -lookback_start_idx  # hours needed from before this year's cube starts
+
+    # Work out year-1's own cube length so we know where its Dec(year-1)
+    # block (the tail) sits in its own index space
+    prev_has_prev_december = not (year - 1 == DATASET_MIN_YEAR)
+    prev_total_len = (13 if prev_has_prev_december else 12) * HOURS_PER_MONTH
+
+    prev_cube = get_rainfall_cube_subsection(
+        year - 1, ens_num, rainfall_cube_dir,
+        start_idx=prev_total_len - deficit, stop_idx=prev_total_len)
+
+    this_cube = get_rainfall_cube_subsection(
+        year, ens_num, rainfall_cube_dir,
+        start_idx=0, stop_idx=event_start_idx)
+
+    for c in (prev_cube, this_cube):
+        c.attributes = {}
+        c.coord('time').bounds = None
+
+    return iris.cube.CubeList([prev_cube, this_cube]).concatenate_cube()
 
 def get_exceedance_summary(year_cube, peak_t_idx, threshold=150, window=10):
     """

@@ -442,7 +442,7 @@ def check_extremes_across_combos(results_df, plot=True):
                 event_row = rainfall_events.loc[event_num]
                 year      = int(event_row['hydro_year'])
 
-                event_details = get_rainfall_event_details(
+                event_details = f_event_details(
                     rainfall_events.reset_index(), event_num)
                 
                 start_idx = event_details['start_idx']
@@ -593,8 +593,6 @@ def check_extremes_across_combos(results_df, plot=True):
 
     return pd.DataFrame(rows)
 
-
-
 def compare_bc_nonbc_timeseries(rainfall_cube_dir_bc, rainfall_cube_dir_nonbc, catchment_num, ens_num):
     '''
     For the peak event in the catchment
@@ -618,7 +616,8 @@ def compare_bc_nonbc_timeseries(rainfall_cube_dir_bc, rainfall_cube_dir_nonbc, c
         rainfall_events['start_month'] != 12,
         rainfall_events['start_year'] + 1)
 
-    peak_event_row = rainfall_events.nlargest(1, 'peaks').iloc[0]
+#     peak_event_row = rainfall_events.nlargest(1, 'peaks').iloc[0]
+    peak_event_row = rainfall_events[rainfall_events['event_num']==190].iloc[0]
     year           = int(peak_event_row['hydro_year'])
     event_num      = int(peak_event_row['event_num'])
     event_details  = get_rainfall_event_details(rainfall_events, event_num)
@@ -626,9 +625,8 @@ def compare_bc_nonbc_timeseries(rainfall_cube_dir_bc, rainfall_cube_dir_nonbc, c
     start_idx = event_details['start_idx']
     stop_idx  = event_details['stop_idx']
     # start_time = pd.to_datetime(event_details['start_time'])  # <-- assumes this exists
-    start_time = pd.Timestamp(year=event_details['yr'],  month=event_details['month'],day=event_details['day'], hour=event_details['hour'] )
-    
-    
+    start_time = pd.Timestamp(year=event_details['start_year'],  month=event_details['start_month'],day=event_details['start_day'], hour=event_details['start_hour'])
+        
     # ── Load both cubes ───────────────────────────────────────────────────────
     def load_spatial_mean(cube_dir, bc):
         loader = get_rainfall_cube_subsection if bc else get_rainfall_cube_subsection_notbc
@@ -650,6 +648,62 @@ def compare_bc_nonbc_timeseries(rainfall_cube_dir_bc, rainfall_cube_dir_nonbc, c
         'non_bc': vals_nonbc })
 
     return df
+
+
+# def compare_bc_nonbc_timeseries(rainfall_cube_dir_bc, rainfall_cube_dir_nonbc, catchment_num, ens_num):
+#     '''
+#     For the peak event in the catchment
+#     '''
+#     catchment_name = CATCHMENT_LOOKUP_DICT[str(catchment_num)]
+#     boundary_gdf   = CATCHMENTS[CATCHMENTS['HA_NUM'] == str(catchment_num)]
+#     CATCHMENT_POLY = boundary_gdf.geometry.iloc[0]
+
+#     # ── Mask setup ────────────────────────────────────────────────────────────
+#     full_rain_cube = get_rainfall_cube_subsection(
+#         2015, '01',
+#         f"/scratch/hydro5/users/ld14116/SDM_bias_correction/Hourly/01/",
+#         1, 2)
+#     FULL_MASK_2D = mask_cube_with_catchment_full_grid(
+#         full_rain_cube[0], CATCHMENT_POLY, method='center_point')
+
+#     # ── Find peak event ───────────────────────────────────────────────────────
+#     rainfall_events = pd.read_csv(RAINFALL_CSV_DIR + f"{catchment_name}_{ens_num}_full_events_with_event_nums.csv")
+#     rainfall_events['event_num']  = range(1, len(rainfall_events) + 1)
+#     rainfall_events['hydro_year'] = rainfall_events['start_year'].where(
+#         rainfall_events['start_month'] != 12,
+#         rainfall_events['start_year'] + 1)
+
+#     peak_event_row = rainfall_events.nlargest(1, 'peaks').iloc[0]
+#     year           = int(peak_event_row['hydro_year'])
+#     event_num      = int(peak_event_row['event_num'])
+#     event_details  = get_rainfall_event_details(rainfall_events, event_num)
+
+#     start_idx = event_details['start_idx']
+#     stop_idx  = event_details['stop_idx']
+#     # start_time = pd.to_datetime(event_details['start_time'])  # <-- assumes this exists
+#     start_time = pd.Timestamp(year=event_details['yr'],  month=event_details['month'],day=event_details['day'], hour=event_details['hour'])
+        
+#     # ── Load both cubes ───────────────────────────────────────────────────────
+#     def load_spatial_mean(cube_dir, bc):
+#         loader = get_rainfall_cube_subsection if bc else get_rainfall_cube_subsection_notbc
+#         cube   = loader(year, ens_num, cube_dir, start_idx, stop_idx)
+#         cube.data = np.where(FULL_MASK_2D, cube.data, np.nan)
+#         return np.nanmean(cube.data.reshape(cube.shape[0], -1), axis=1)
+
+#     vals_bc    = load_spatial_mean(rainfall_cube_dir_bc,    bc=True)
+#     vals_nonbc = load_spatial_mean(rainfall_cube_dir_nonbc, bc=False)
+
+#     # ── Build datetime index ──────────────────────────────────────────────────
+#     n_steps = len(vals_bc)
+#     time_index = pd.date_range(start=start_time, periods=n_steps, freq='H')  # adjust freq if needed
+
+#     # ── Build tidy dataframe ──────────────────────────────────────────────────
+#     df = pd.DataFrame({
+#         'datetime': time_index,
+#         'bc': vals_bc,
+#         'non_bc': vals_nonbc })
+
+#     return df
 
 def plot_bc_vs_nonbc_comparison(rainfall_cube_dir_bc, rainfall_cube_dir_nonbc, catchment_num, ens_num):
     catchment_name = CATCHMENT_LOOKUP_DICT[str(catchment_num)]
