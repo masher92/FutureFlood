@@ -40,7 +40,7 @@ def plot_with_best_fit_line(results_df, ax, col1, col2, label1, label2, title):
     x = results_df[col1]
     y = results_df[col2]
 
-    sc = ax.scatter(x, y,  c=results_df["fu_at_peak_mm"], cmap='YlGnBu')
+    sc = ax.scatter(x, y,  c=results_df["fu_at_peak_old_mm"], cmap='YlGnBu')
 
     # 🔹 Fit line
     m, b = np.polyfit(x, y, 1)
