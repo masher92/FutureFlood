@@ -232,7 +232,7 @@ def fit_trend(years, values):
         "p_value": p_value})
 
 
-def make_subplot(axs, variable, y_label, title, trend_rounding, trend_unit ):
+def make_subplot(axs, variable, y_label, title, trend_rounding, trend_unit, legend=True ):
 
 
     slope, intercept, r_value, p_value, std_err = linregress(variable.index,variable.values)
@@ -249,14 +249,15 @@ def make_subplot(axs, variable, y_label, title, trend_rounding, trend_unit ):
     axs.plot(variable.index, trend, linestyle="--", label=f"Trend ({round(slope, trend_rounding)} {trend_unit}, \n p={p_value})", color="green")
     axs.set_ylabel(y_label, fontsize=20)
     axs.set_title(title, fontsize=20)
-    axs.legend(fontsize=14);
+    if legend==True:
+        axs.legend(fontsize=14);
     
     axs.tick_params(axis='both', which='major',  labelsize=12)
 
 def make_spatial_change_plot(summary_gdf, variable, title, unit, timeperiod1, timeperiod2):
     fig, axes = plt.subplots(1, 2,figsize=(10, 6))
     axes=axes.flatten()
-    # Number of events
+    # Timeperiod1
     summary_gdf.plot(column=f"{variable}_{timeperiod1}",ax=axes[0],cmap="YlOrRd",edgecolor="black",
                            linewidth=0.5,legend=True, legend_kwds={"label": "n"})
     #                  norm=PowerNorm(gamma=0.3)
@@ -267,7 +268,7 @@ def make_spatial_change_plot(summary_gdf, variable, title, unit, timeperiod1, ti
     cbar.tick_params(labelsize=15)
     cbar.set_ylabel(unit, fontsize=14)
 
-    # Max precipitation
+    # Timeperiod2
     summary_gdf.plot(column=f"{variable}_{timeperiod2}",ax=axes[1],cmap="YlOrRd",edgecolor="black",
                            linewidth=0.5,legend=True, legend_kwds={"label": "n"})
 
