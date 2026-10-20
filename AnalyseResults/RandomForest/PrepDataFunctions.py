@@ -9,7 +9,7 @@ def prep_for_modelling (fp, remove_events_with_zero_flooding):
     rainfall_events_all_df = rainfall_events_all_df[rainfall_events_all_df['max_precip']<130].copy()
     # Add length variables, remove length '1' events
     rainfall_events_all_df["length"] = (rainfall_events_all_df["stop_idx"] - rainfall_events_all_df["start_idx"]).astype("float32")
-    rainfall_events_all_df = rainfall_events_all_df[rainfall_events_all_df['length_of_active_rain']>1].copy()
+    # rainfall_events_all_df = rainfall_events_all_df[rainfall_events_all_df['length_of_active_rain']>1].copy()
     # Add random variable
     rainfall_events_all_df['random_variable'] = np.random.normal(size=len(rainfall_events_all_df))
 

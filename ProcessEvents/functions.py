@@ -23,33 +23,6 @@ warnings.filterwarnings("ignore", message=".*ensemble_member_id.*")
 iris.FUTURE.date_microseconds = True
 iris.FUTURE.datum_support = True
 
-def find_max_precip_location(cube, start_idx, stop_idx, x_offset=0, y_offset=0, mask_2d=None):
-    
-    cube_sliced = cube[start_idx:stop_idx,:,:]
-    data = np.array(cube_sliced.data)
-    data[data >= 1e19] = np.nan
-
-    # Then apply mask only to this small slice
-    if mask_2d is not None:
-        t = time.time()
-        data = np.where(mask_2d, data, np.nan)
-
-    flat_index = np.nanargmax(data)
-    # print(f"Max precip: {np.nanmax(data)}")
-    t_local, y_idx, x_idx = np.unravel_index(flat_index, data.shape)
-
-    return {
-        'max_precip':   float(data[t_local, y_idx, x_idx]),
-        't_global':     int(t_local + start_idx),
-        't_local':      int(t_local),
-        'x_idx':        int(x_idx),
-        'y_idx':        int(y_idx),
-        'x_idx_global': int(x_idx + x_offset),
-        'y_idx_global': int(y_idx + y_offset),
-        'x_coord':      cube.coord('projection_x_coordinate').points[x_idx],
-        'y_coord':      cube.coord('projection_y_coordinate').points[y_idx],
-    }
-
 def get_data_at_peak_cell(cube, one_event_results, x_idx_variable, y_idx_variable):
 
     x_idx = one_event_results[x_idx_variable]
@@ -89,23 +62,6 @@ def mask_to_polygons(mask, x, y):
     shape = unary_union(cells).buffer(0)
     return list(shape.geoms) if isinstance(shape, MultiPolygon) else [shape]    
 
-def filter_closer_to_catchment(cube, catchment_poly, plot=False, boundary_gdf = None):
-
-    minx, miny, maxx, maxy = catchment_poly.bounds
-
-    buffer = 0  # metres
-
-    constraint = iris.Constraint( projection_x_coordinate=lambda x: (minx - buffer) <= x <= (maxx + buffer),
-        projection_y_coordinate=lambda y: (miny - buffer) <= y <= (maxy + buffer))
-
-    sub_cube = cube.extract(constraint)
-    
-    if plot==True:
-        fig, ax = plt.subplots(figsize=(6,6), subplot_kw={'projection': ccrs.OSGB()})
-        qplt.pcolormesh(sub_cube[2], axes=ax, cmap = 'terrain', edgecolor='black', linewidth=0.5)
-        ax.add_geometries([catchment_poly], crs=ccrs.OSGB(), facecolor='none', edgecolor='black', linewidth=1.5)
-        
-    return sub_cube
 
 def filter_closer_to_catchment_xr_bounds(da_or_ds, catchment_poly, x_dim="projection_x_coordinate",
                                            y_dim="projection_y_coordinate", cell_size=5000, buffer=0):
@@ -138,23 +94,6 @@ def get_rainfall_cube(yr, ENS_NUM, RAINFALLDIR):
     return monthly_cubes.concatenate_cube()
 
 
-def subset_cube_to_bbox(cube, catchment_poly, buffer=0):
-    minx, miny, maxx, maxy = catchment_poly.bounds
-
-    x_full = cube.coord('projection_x_coordinate').points
-    y_full = cube.coord('projection_y_coordinate').points
-
-    constraint = iris.Constraint(
-        projection_x_coordinate=lambda x: (minx - buffer) <= x <= (maxx + buffer),
-        projection_y_coordinate=lambda y: (miny - buffer) <= y <= (maxy + buffer))
-
-    sub_cube = cube.extract(constraint)
-
-    # Record where the sub-cube starts in the full grid
-    x_offset = int(np.searchsorted(x_full, sub_cube.coord('projection_x_coordinate').points[0]))
-    y_offset = int(np.searchsorted(y_full, sub_cube.coord('projection_y_coordinate').points[0]))
-
-    return sub_cube, x_offset, y_offset
 
 
 def find_temporal_profile(cube, details, plot):
@@ -269,40 +208,7 @@ def compute_temporal_metrics(values):
 
 
 
-def mask_cube_with_catchment_full_grid(cube, catchment_poly, method="full_cell"):
-    """
-    Build a 2D boolean mask on the full grid (e.g. full UK grid).
-    Returns (ny, nx) boolean array — True where inside catchment.
-    Only needs to be called once per catchment.
-    """
-    x = cube.coord('projection_x_coordinate').points
-    y = cube.coord('projection_y_coordinate').points
-    xx, yy = np.meshgrid(x, y)
 
-    if method == "center_point":
-        mask = contains_xy(catchment_poly, xx.ravel(), yy.ravel())
-        mask = mask.reshape(xx.shape)
-
-    elif method == "full_cell":
-        dx = x[1] - x[0]
-        dy = y[1] - y[0]
-
-        cells = [
-            box(xi - dx/2, yi - dy/2, xi + dx/2, yi + dy/2)
-            for yi, xi in zip(yy.ravel(), xx.ravel())
-        ]
-
-        tree = STRtree(cells)
-        hits = tree.query(catchment_poly, predicate='intersects')
-
-        mask = np.zeros(len(cells), dtype=bool)
-        mask[hits] = True
-        mask = mask.reshape(xx.shape)
-
-    else:
-        raise ValueError("method must be 'center_point' or 'full_cell'")
-
-    return mask  # (ny, nx) boolean, never applied to any cube
 
 
 def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
@@ -354,46 +260,6 @@ def plot_peak_check(ax, cube, catchment_poly, this_event_results, title):
     ax.legend(loc='lower right')
     plt.tight_layout()
 
-# def get_rainfall_event_details(rainfall_events, event_num):
-#     """Extract metadata for a single event."""
-#     this_event = rainfall_events[rainfall_events['event_num'] == event_num].reset_index(drop=True)
-        
-#     return {
-#         'event_num': event_num,
-#         'yr':        int(this_event['start_year'][0]),
-#         'month':        int(this_event['start_month'][0]),
-#         'day':        int(this_event['start_day'][0]),
-#         'hour': int(this_event['start_hour'][0]),
-#         'hydro_yr':        int(this_event['hydro_year'][0]),
-#         'start_idx': int(this_event['start_indices'][0]),
-#         'stop_idx':  int(this_event['stop_indices'][0]),
-#         'max_precip_from_csv':  float(this_event['peaks'][0]),
-#         'start_time': pd.Timestamp(
-#     year=int(this_event['start_year'][0]),
-#     month=int(this_event['start_month'][0]),
-#     day=int(this_event['start_day'][0]),
-#     hour=int(this_event['start_hour'][0]))}    
-
-def get_rainfall_event_details(rainfall_events, event_num):
-    """Extract metadata for a single event."""
-    this_event = rainfall_events[rainfall_events['event_num'] == event_num].reset_index(drop=True)
-        
-    return {
-        'event_num': event_num,
-        'start_year':        int(this_event['start_year'][0]),
-        'start_month':        int(this_event['start_month'][0]),
-        'start_day':        int(this_event['start_day'][0]),
-        'start_hour': int(this_event['start_hour'][0]),
-        'hydro_yr':        int(this_event['hydro_year'][0]),
-        'event_durations':        int(this_event['event_durations'][0]),
-        'start_idx': int(this_event['start_indices'][0]),
-        'stop_idx':  int(this_event['stop_indices'][0]),
-        'max_precip_from_csv':  float(this_event['peaks'][0]),
-        'start_time': cftime.Datetime360Day(
-    year=int(this_event['start_year'][0]),
-    month=int(this_event['start_month'][0]),
-    day=int(this_event['start_day'][0]),
-    hour=int(this_event['start_hour'][0])) }
 
 def extract_catchment_cube(cube, catchment_poly, method, buffer=0):
     start_time1 = time.time()
@@ -413,33 +279,3 @@ def extract_catchment_cube(cube, catchment_poly, method, buffer=0):
     return masked_cube
 
 
-def load_3d_cube(filepath):
-    cubes = iris.load(filepath)
-    matches = [c for c in cubes if c.ndim == 3]
-    if len(matches) == 0:
-        raise ValueError(f"No 3D cube found in {filepath}")
-    if len(matches) > 1:
-        raise ValueError(f"Multiple 3D cubes found in {filepath} — be more specific")
-    return matches[0]
-
-def prepare_flood_cube(cube):
-    """Apply standard transformations to a flood cube."""
-    cube = set_osgb_projection(cube)
-    cube = guess_bounds_if_missing(cube)
-    # cube = filter_closer_to_catchment(cube, catchment_poly, plot=plot)
-    return cube
-
-def set_osgb_projection(cube):
-    """Assign OSGB coordinate system to x/y coordinates."""
-    bng = iris.coord_systems.OSGB()
-    cube.coord('projection_x_coordinate').coord_system = bng
-    cube.coord('projection_y_coordinate').coord_system = bng
-    return cube
-
-def guess_bounds_if_missing(cube):
-    """Guess bounds on x/y coordinates if not already present."""
-    for coord_name in ['projection_x_coordinate', 'projection_y_coordinate']:
-        coord = cube.coord(coord_name)
-        if not coord.has_bounds():
-            coord.guess_bounds()
-    return cube
