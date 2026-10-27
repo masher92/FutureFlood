@@ -213,25 +213,35 @@ def add_rainfall_peak_time_vars(time_coord, result):
    
     return result
 
-def get_rainfall_at_peak_cells(pk, prefix, year_cube, flood_numpy, sm,  x_offset, y_offset, event_idx, WET_THRESH, result = None):
-    if result == None:
+def get_rainfall_at_peak_cells(pk, prefix, year_cube, flood_numpy, sm, x_offset, y_offset,
+                               event_idx, WET_THRESH, result=None):
+    if result is None:
         result = {}
 
-    result[f'{prefix}_found'] = pk is not None
-    #if pk is None:
-    #    continue                                  # keep the event, with NaNs for this anchor
+    # No peak cell for this anchor (e.g. no flooding anywhere): write NaN placeholders so every
+    # event has the same columns, then return. The event itself is kept.
+    if pk is None:
+        result[f'{prefix}_found']      = False
+        result[f'{prefix}_peak_value'] = np.nan
+        result[f'{prefix}_x_global']   = np.nan
+        result[f'{prefix}_y_global']   = np.nan
+        result[f'{prefix}_x_coord']    = np.nan
+        result[f'{prefix}_y_coord']    = np.nan
+        return result
+
+    result[f'{prefix}_found']      = True
     result[f'{prefix}_peak_value'] = pk['peak_value']
     result[f'{prefix}_x_global']   = pk['x_idx'] + x_offset
     result[f'{prefix}_y_global']   = pk['y_idx'] + y_offset
-    result[f'{prefix}_x_coord'] = float(year_cube.coord('projection_x_coordinate').points[pk['x_idx']])
-    result[f'{prefix}_y_coord'] = float(year_cube.coord('projection_y_coordinate').points[pk['y_idx']])
-    
-    if prefix =='rainpeak':
-        result[f'{prefix}_t_local']     = pk['t_local']
-    
-    result.update(extract_at_cell(pk['y_idx'], pk['x_idx'], year_cube, flood_numpy, event_idx, sm, prefix, WET_THRESH))
+    result[f'{prefix}_x_coord']    = float(year_cube.coord('projection_x_coordinate').points[pk['x_idx']])
+    result[f'{prefix}_y_coord']    = float(year_cube.coord('projection_y_coordinate').points[pk['y_idx']])
 
-    return result                
+    if prefix == 'rainpeak':
+        result[f'{prefix}_t_local'] = pk['t_local']
+
+    result.update(extract_at_cell(pk['y_idx'], pk['x_idx'], year_cube, flood_numpy,
+                                  event_idx, sm, prefix, WET_THRESH))
+    return result              
 
 
 def find_peak_cell(field, min_value=0.0):
