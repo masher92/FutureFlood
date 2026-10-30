@@ -116,9 +116,9 @@ def corr_colour(predictor, predictor_corr):
     rho = predictor_corr.get(predictor, np.nan)
     return "steelblue" if rho > 0 else "darkorange" if rho < 0 else "grey"
 
-def find_correlations(subset_early, TARGET, predictor_variables, grouped_variables):
+def find_correlations(subset_early, TARGET, pi_df, grouped_variables):
     predictor_corr = {}
-    for predictor in predictor_variables:
+    for predictor in pi_df['predictor']:
         if predictor in grouped_variables:
             cols = [c for c in grouped_variables[predictor] if c in subset_early.columns]
             rhos = [spearmanr(subset_early[c], subset_early[TARGET], nan_policy="omit").statistic for c in cols]
@@ -131,7 +131,7 @@ def find_correlations(subset_early, TARGET, predictor_variables, grouped_variabl
         predictor_corr[predictor] = rho
         
     return predictor_corr
-    
+
 def plot_importance_scores(pi_df, shap_df, predictor_corr_df):
     fig, axes = plt.subplots(1, 2, figsize=(16, max(6, len(pi_df) * 0.32)))
 

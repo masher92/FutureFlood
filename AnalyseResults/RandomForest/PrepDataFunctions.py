@@ -6,7 +6,7 @@ def prep_for_modelling (fp, remove_events_with_zero_flooding):
     ### Get event data
     rainfall_events_all_df = pd.read_pickle(fp)
     # Get rid of unphysical values
-    rainfall_events_all_df = rainfall_events_all_df[rainfall_events_all_df['max_precip']<130].copy()
+    rainfall_events_all_df = rainfall_events_all_df[rainfall_events_all_df['rainpeak_peak_value']<130].copy()
     # Add length variables, remove length '1' events
     rainfall_events_all_df["length"] = (rainfall_events_all_df["stop_idx"] - rainfall_events_all_df["start_idx"]).astype("float32")
     # rainfall_events_all_df = rainfall_events_all_df[rainfall_events_all_df['length_of_active_rain']>1].copy()
@@ -26,7 +26,9 @@ def prep_for_modelling (fp, remove_events_with_zero_flooding):
     variables = list(rainfall_events_all_df.columns)
     to_be_removed = {
                     #'x_coord', 'y_coord',
-                    'x_idx', 'y_idx', 'x_idx_global', "y_idx_global", 't_global','t_local', "day_360", "month",
+                    "floodpeak_found","matched",
+                    'x_idx', 'y_idx', 'rainpeak_x_global', "rainpeak_y_global", 't_global','rainpeak_t_local', "day_360",
+                    "start_month",
                      "max_precip_from_csv", "event_num", "time_mismatch", "ens",  'start_idx', 'stop_idx',
                      "t_local_rebased", "times", "values", "mismatch", 'n_valid', 'pct_over1', 'pct_under0',
                     # "10cm_volume", "30cm_area", "30cm_volume", "10cm_area", 
@@ -52,7 +54,12 @@ def prep_for_modelling (fp, remove_events_with_zero_flooding):
     
     if remove_events_with_zero_flooding == True:
         rainfall_events_all_df=rainfall_events_all_df[rainfall_events_all_df['10cm_area']>0.1]
-        
+
+    cols = ["rainpeak_x_coord", "rainpeak_y_coord"]
+    rainfall_events_all_df["peak_cell_id"] =rainfall_events_all_df.groupby(cols, sort=False).ngroup()        
+
+    rainfall_events_all_df.rename({'dry_ratio_n':'dry_ratio'}, inplace=True)
+    
     return rainfall_events_all_df
     
 def create_subset (df, sample_size, random_seed):
