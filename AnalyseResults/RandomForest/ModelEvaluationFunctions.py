@@ -114,7 +114,7 @@ def permutation_importance_with_individual_predictors(X_test, y_test, rf, SEED):
 # Colours: positive = blue, negative = orange, undefined = grey
 def corr_colour(predictor, predictor_corr):
     rho = predictor_corr.get(predictor, np.nan)
-    return "steelblue" if rho > 0 else "darkorange" if rho < 0 else "grey"
+    return "steelblue" if rho > 0 else "indianred" if rho < 0 else "grey"
 
 def find_correlations(subset_early, TARGET, pi_df, grouped_variables):
     predictor_corr = {}
@@ -131,6 +131,25 @@ def find_correlations(subset_early, TARGET, pi_df, grouped_variables):
         predictor_corr[predictor] = rho
         
     return predictor_corr
+
+def plot_shap_importance_scores(fig, ax, shap_df, predictor_corr_df):
+
+    # Individual SHAP importance
+    plot_shap = shap_df.sort_values("SHAP_mean_abs")
+
+    ax.barh(plot_shap["predictor"], plot_shap["SHAP_mean_abs"],
+        color=[corr_colour(p, predictor_corr_df) for p in plot_shap["predictor"]])
+    ax.set_xlabel("Mean absolute SHAP value")
+    ax.set_title("Individual SHAP importance")
+
+    # Shared legend
+    legend_handles = [Patch(color="steelblue", label="Positive Spearman correlation"),
+                      Patch(color="indianred", label="Negative Spearman correlation"),
+        Patch(color="grey", label="Zero / undefined correlation")]
+
+    fig.legend(handles=legend_handles, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.02))
+
+    fig.tight_layout(rect=[0, 0.04, 1, 1])
 
 def plot_importance_scores(pi_df, shap_df, predictor_corr_df):
     fig, axes = plt.subplots(1, 2, figsize=(16, max(6, len(pi_df) * 0.32)))
@@ -154,7 +173,7 @@ def plot_importance_scores(pi_df, shap_df, predictor_corr_df):
 
     # Shared legend
     legend_handles = [Patch(color="steelblue", label="Positive Spearman correlation"),
-                      Patch(color="darkorange", label="Negative Spearman correlation"),
+                      Patch(color="indianred", label="Negative Spearman correlation"),
         Patch(color="grey", label="Zero / undefined correlation")]
 
     fig.legend(handles=legend_handles, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.02))
